@@ -20,8 +20,6 @@ import 'providers/teacher_library_provider.dart';
 import 'providers/teacher_settings_provider.dart';
 import 'providers/teacher_task_provider.dart';
 import 'providers/teacher_timetable_provider.dart';
-import 'screens/admin_user_management_page.dart';
-import 'screens/first_login_password_reset_page.dart';
 import 'screens/login_page.dart';
 import 'screens/students/select_child_page.dart';
 import 'screens/students/student_achievement_page.dart';
@@ -149,10 +147,6 @@ class MyApp extends StatelessWidget {
         _extractPositiveInt(selectedChild?['user_id']);
   }
 
-  MaterialPageRoute _protectedRoute(Widget child) {
-    return MaterialPageRoute(builder: (_) => _PasswordResetGuard(child: child));
-  }
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -171,14 +165,16 @@ class MyApp extends StatelessWidget {
 
         switch (settings.name) {
           case '/dashboard':
-            return _protectedRoute(const TeacherDashboardPage());
+            return MaterialPageRoute(
+              builder: (_) => const TeacherDashboardPage(),
+            );
           case '/todo':
-            return _protectedRoute(const ToDoListPage());
+            return MaterialPageRoute(builder: (_) => const ToDoListPage());
           case '/classtime':
-            return _protectedRoute(const ClassTimePageView());
+            return MaterialPageRoute(builder: (_) => const ClassTimePageView());
           case '/profile':
-            return _protectedRoute(
-              FutureBuilder<int>(
+            return MaterialPageRoute(
+              builder: (_) => FutureBuilder<int>(
                 future: _getStaffId(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -199,60 +195,77 @@ class MyApp extends StatelessWidget {
               ),
             );
           case '/settings':
-            return _protectedRoute(const SettingsPage());
+            return MaterialPageRoute(builder: (_) => const SettingsPage());
 
           case '/student-todo':
-            return _protectedRoute(const StudentToDoListPage());
+            return MaterialPageRoute(
+              builder: (_) => const StudentToDoListPage(),
+            );
           case '/student-dashboard':
             final args = settings.arguments as Map<String, dynamic>;
-            return _protectedRoute(StudentDashboardPage(childData: args));
-          case '/first-login-password-reset':
             return MaterialPageRoute(
-              builder: (_) => const FirstLoginPasswordResetPage(),
-            );
-          case '/admin/user-management':
-            return MaterialPageRoute(
-              builder: (_) => const AdminUserManagementPage(),
+              builder: (_) => StudentDashboardPage(childData: args),
             );
           case '/select-child':
-            return _protectedRoute(const SelectChildPage());
+            return MaterialPageRoute(builder: (_) => const SelectChildPage());
           case '/student-details':
             final studentId = settings.arguments as int;
-            return _protectedRoute(
-              StudentProfilePage(studentId: studentId, isTeacherView: true),
+            return MaterialPageRoute(
+              builder: (_) =>
+                  StudentProfilePage(studentId: studentId, isTeacherView: true),
             );
           case '/student-profile':
             final id = settings.arguments as int;
-            return _protectedRoute(StudentProfilePage(studentId: id));
+            return MaterialPageRoute(
+              builder: (_) => StudentProfilePage(studentId: id),
+            );
           case '/timetable':
             final args = settings.arguments as Map<String, dynamic>;
             final studentId = args['studentId'].toString();
-            return _protectedRoute(StudentTimeTablePage(studentId: studentId));
+            return MaterialPageRoute(
+              builder: (_) => StudentTimeTablePage(studentId: studentId),
+            );
           case '/student-settings':
-            return _protectedRoute(const StudentSettingsPage());
+            return MaterialPageRoute(
+              builder: (_) => const StudentSettingsPage(),
+            );
           case '/student-library':
-            return _protectedRoute(const StudentLibraryPage());
+            return MaterialPageRoute(
+              builder: (_) => const StudentLibraryPage(),
+            );
           case '/student-achievements':
             final args = settings.arguments as Map<String, dynamic>;
             final classId = args['classId'] as int;
-            return _protectedRoute(StudentAchievementPage(classId: classId));
+            return MaterialPageRoute(
+              builder: (_) => StudentAchievementPage(classId: classId),
+            );
           case '/student-payments':
             final args = settings.arguments as Map<String, dynamic>;
             final studentId = args['studentId'] as String;
-            return _protectedRoute(StudentPaymentsPage(studentId: studentId));
+            return MaterialPageRoute(
+              builder: (_) => StudentPaymentsPage(studentId: studentId),
+            );
           case '/student-messages':
             final args = settings.arguments as Map<String, dynamic>;
             final studentId = args['studentId'] as int;
-            return _protectedRoute(StudentMessagesPage(studentId: studentId));
+            return MaterialPageRoute(
+              builder: (_) => StudentMessagesPage(studentId: studentId),
+            );
 
           case '/attendance':
-            return _protectedRoute(const TeacherAttendancePage());
+            return MaterialPageRoute(
+              builder: (_) => const TeacherAttendancePage(),
+            );
           case '/syllabus':
-            return _protectedRoute(const TeacherSyllabusPage());
+            return MaterialPageRoute(
+              builder: (_) => const TeacherSyllabusPage(),
+            );
           case '/exams':
-            return _protectedRoute(const TeacherExamPage());
+            return MaterialPageRoute(builder: (_) => const TeacherExamPage());
           case '/events':
-            return _protectedRoute(const TeacherEventsHolidaysPage());
+            return MaterialPageRoute(
+              builder: (_) => const TeacherEventsHolidaysPage(),
+            );
 
           default:
             return MaterialPageRoute(builder: (_) => const LoginPage());
@@ -294,10 +307,6 @@ class _AuthGatePageState extends State<AuthGatePage> {
             launchData.token != null && launchData.token!.trim().isNotEmpty;
 
         if (hasToken) {
-          if (launchData.passwordResetRequired) {
-            return const FirstLoginPasswordResetPage();
-          }
-
           if (launchData.userType == 'teacher' || opensTeacherDashboard) {
             return const TeacherDashboardPage();
           }
@@ -323,10 +332,6 @@ class _AuthGatePageState extends State<AuthGatePage> {
       token: prefs.getString('auth_token'),
       userType: prefs.getString('user_type')?.toLowerCase(),
       selectedChild: _readJsonMap(prefs.getString('selected_child')),
-      passwordResetRequired:
-          prefs.getBool('password_reset_required') ??
-          prefs.getBool('first_login_password_reset_required') ??
-          false,
     );
   }
 
@@ -347,46 +352,6 @@ class _AuthLaunchData {
   final String? token;
   final String? userType;
   final Map<String, dynamic>? selectedChild;
-  final bool passwordResetRequired;
 
-  const _AuthLaunchData({
-    this.token,
-    this.userType,
-    this.selectedChild,
-    this.passwordResetRequired = false,
-  });
-}
-
-class _PasswordResetGuard extends StatelessWidget {
-  final Widget child;
-
-  const _PasswordResetGuard({required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<bool>(
-      future: _passwordResetRequired(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Scaffold(
-            backgroundColor: Colors.white,
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        if (snapshot.data == true) {
-          return const FirstLoginPasswordResetPage();
-        }
-
-        return child;
-      },
-    );
-  }
-
-  Future<bool> _passwordResetRequired() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool('password_reset_required') ??
-        prefs.getBool('first_login_password_reset_required') ??
-        false;
-  }
+  const _AuthLaunchData({this.token, this.userType, this.selectedChild});
 }
