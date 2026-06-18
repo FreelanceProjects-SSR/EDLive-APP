@@ -66,7 +66,10 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _login() async {
-    final username = _usernameController.text.trim();
+    final enteredUsername = _usernameController.text.trim();
+    final username = enteredUsername.contains('@')
+        ? enteredUsername.toLowerCase()
+        : enteredUsername;
     final password = _passwordController.text.trim();
 
     if (username.isEmpty || password.isEmpty) {
@@ -106,6 +109,10 @@ class _LoginPageState extends State<LoginPage> {
       await prefs.setString('auth_token', token);
       await prefs.setString('user_type', userType);
       await prefs.setString('user_data', jsonEncode(user));
+      await prefs.setBool(
+        'password_reset_required',
+        _requiresFirstLoginPasswordReset(data, user),
+      );
 
       if (userType == 'student' && user['student_id'] != null) {
         await prefs.setInt(
@@ -115,6 +122,12 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       if (!mounted) {
+        return;
+      }
+
+      if ((userType == 'teacher' || userType == 'student') &&
+          _requiresFirstLoginPasswordReset(data, user)) {
+        Navigator.pushReplacementNamed(context, '/first-login-password-reset');
         return;
       }
 
@@ -161,6 +174,28 @@ class _LoginPageState extends State<LoginPage> {
         });
       }
     }
+  }
+
+  bool _requiresFirstLoginPasswordReset(
+    Map<String, dynamic> responseData,
+    Map<String, dynamic> user,
+  ) {
+    return _extractBool(responseData['password_reset_required']) ||
+        _extractBool(responseData['first_login_password_reset_required']) ||
+        _extractBool(responseData['must_change_password']) ||
+        _extractBool(responseData['force_password_reset']) ||
+        _extractBool(user['password_reset_required']) ||
+        _extractBool(user['first_login_password_reset_required']) ||
+        _extractBool(user['must_change_password']) ||
+        _extractBool(user['force_password_reset']);
+  }
+
+  bool _extractBool(dynamic value) {
+    if (value is bool) {
+      return value;
+    }
+    final normalized = value?.toString().trim().toLowerCase() ?? '';
+    return normalized == 'true' || normalized == '1' || normalized == 'yes';
   }
 
   Future<void> _handleStudentOrParentLogin({
