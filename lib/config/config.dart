@@ -47,7 +47,10 @@ class AppConfig {
       return _normalizeOrigin(_serverOriginOverride);
     }
 
-    // 2. If running Flutter Web in localhost, use local backend
+    // 2. Mobile/desktop local runs use the local backend by default.
+    // Flutter Web on localhost should still use production unless SERVER_ORIGIN
+    // is passed, otherwise it can hit a different local database and reject
+    // valid deployed credentials.
     if (_shouldUseLocalBackend) {
       return _resolvedLocalServerOrigin;
     }
@@ -146,14 +149,7 @@ class AppConfig {
 
   /// ✅ Local detection
   static bool get _shouldUseLocalBackend {
-    // Mobile/desktop local run
-    if (!kIsWeb) {
-      return true;
-    }
-
-    // Web local run
-    final host = Uri.base.host.toLowerCase();
-    return host == 'localhost' || host == '127.0.0.1';
+    return !kIsWeb;
   }
 
   static String get _resolvedLocalServerOrigin {
