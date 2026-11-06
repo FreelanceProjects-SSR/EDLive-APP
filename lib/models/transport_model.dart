@@ -23,15 +23,32 @@ class Transport {
 
   factory Transport.fromJson(Map<String, dynamic> json) {
     return Transport(
-      id: json['id'],
-      busNumber: json['bus_number'] ?? '',
-      routeName: json['route_name'] ?? '',
-      stopName: json['stop_name'] ?? '',
-      arrivalTime: json['arrival_time'] ?? '',
-      driverName: json['driver_name'] ?? '',
-      driverContact: json['driver_contact'] ?? '',
-      managerName: json['manager_name'],
-      managerContact: json['manager_contact'],
+      id: _readInt(json['id']),
+      busNumber: _readString(json['bus_number']),
+      routeName: _readString(json['route_name']),
+      stopName: _readString(json['stop_name']),
+      arrivalTime: _readString(json['arrival_time']),
+      driverName: _readString(json['driver_name']),
+      driverContact: _readString(json['driver_contact']),
+      managerName: _readNullableString(json['manager_name']),
+      managerContact: _readNullableString(json['manager_contact']),
     );
   }
+}
+
+int _readInt(dynamic value) {
+  if (value is int) {
+    return value;
+  }
+
+  return int.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+String _readString(dynamic value) {
+  return value?.toString() ?? '';
+}
+
+String? _readNullableString(dynamic value) {
+  final text = value?.toString().trim() ?? '';
+  return text.isEmpty ? null : text;
 }

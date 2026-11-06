@@ -6,8 +6,9 @@ import 'package:http/http.dart' as http;
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:school_app/screens/teachers/teacher_menu_drawer.dart';
+import 'package:school_app/utils/api_response_parser.dart';
+import 'package:school_app/utils/file_url_helper.dart';
 import 'package:school_app/widgets/teacher_app_bar.dart';
 import 'teacher_addachievement_page.dart';
 import 'package:school_app/config/config.dart';
@@ -46,7 +47,17 @@ class Achievement {
       category: json['category'] ?? '',
       achievementDate: json['achievement_date'] ?? '',
       awardedBy: json['awarded_by'] ?? '',
-      evidenceUrl: json['evidence_url'] ?? '',
+      evidenceUrl:
+          (json['evidence_url'] ??
+                  json['evidenceUrl'] ??
+                  json['file_url'] ??
+                  json['fileUrl'] ??
+                  json['achievement_file'] ??
+                  json['achievementFile'] ??
+                  json['image_url'] ??
+                  json['imageUrl'] ??
+                  '')
+              .toString(),
       fullName: json['full_name'] ?? '',
       visibility: json['visibility'] ?? '',
       updatedAt: json['updated_at'] ?? '',
@@ -56,9 +67,7 @@ class Achievement {
 
 // ----------------- HELPERS -----------------
 String getFullImageUrl(String url) {
-  if (url.isEmpty) return "";
-  if (url.startsWith("http")) return url;
-  return "${AppConfig.serverOrigin}$url";
+  return buildBackendFileUrl(url);
 }
 
 Widget buildAchievementImage(String url, {double height = 180}) {
@@ -78,11 +87,36 @@ Widget buildAchievementImage(String url, {double height = 180}) {
       width: double.infinity,
       height: height,
       fit: BoxFit.cover,
+      webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
       errorBuilder: (context, error, stackTrace) => SizedBox(
         height: height,
         child: const Center(child: Text("Image not available")),
       ),
     ),
+  );
+}
+
+List<Achievement> parseAchievementList(String responseBody) {
+  final rows = extractJsonList(
+    json.decode(responseBody),
+    preferredKeys: const <String>[
+      'achievements',
+      'visibleAchievements',
+      'data',
+    ],
+  );
+
+  return rows
+      .map((row) => Achievement.fromJson(asStringKeyedMap(row)))
+      .toList();
+}
+
+Uri visibleAchievementsUri() {
+  return AppConfig.apiUri(
+    '/achievements/visible',
+    queryParameters: <String, dynamic>{
+      '_ts': DateTime.now().millisecondsSinceEpoch,
+    },
   );
 }
 
@@ -99,7 +133,7 @@ class _TeacherAchievementPageState extends State<TeacherAchievementPage> {
   List<Achievement> _currentAchievements = [];
   Timer? _refreshTimer;
 
-  Set<int> _viewedIds = {};
+  final Set<int> _viewedIds = {};
 
   @override
   void initState() {
@@ -124,15 +158,12 @@ class _TeacherAchievementPageState extends State<TeacherAchievementPage> {
     if (token.isEmpty) throw Exception("⚠️ Missing token");
 
     final response = await http.get(
-      Uri.parse("${AppConfig.baseUrl}/achievements/visible"),
+      visibleAchievementsUri(),
       headers: {'accept': 'application/json', 'Authorization': 'Bearer $token'},
     );
 
     if (response.statusCode == 200) {
-      final List jsonData = json.decode(response.body);
-      final achievements = jsonData
-          .map((e) => Achievement.fromJson(e))
-          .toList();
+      final achievements = parseAchievementList(response.body);
 
       achievements.sort((a, b) {
         final dateA = DateTime.tryParse(a.updatedAt) ?? DateTime(1900);
@@ -142,8 +173,10 @@ class _TeacherAchievementPageState extends State<TeacherAchievementPage> {
 
       _currentAchievements = achievements;
       return achievements;
+    } else if (response.statusCode == 304) {
+      return _currentAchievements;
     } else {
-      throw Exception('Failed to load achievements');
+      throw Exception('Failed to load achievements (${response.statusCode})');
     }
   }
 
@@ -155,7 +188,7 @@ class _TeacherAchievementPageState extends State<TeacherAchievementPage> {
       if (token.isEmpty) return;
 
       final response = await http.get(
-        Uri.parse("${AppConfig.baseUrl}/achievements/visible"),
+        visibleAchievementsUri(),
         headers: {
           'accept': 'application/json',
           'Authorization': 'Bearer $token',
@@ -163,10 +196,7 @@ class _TeacherAchievementPageState extends State<TeacherAchievementPage> {
       );
 
       if (response.statusCode == 200) {
-        final List jsonData = json.decode(response.body);
-        final updatedList = jsonData
-            .map((e) => Achievement.fromJson(e))
-            .toList();
+        final updatedList = parseAchievementList(response.body);
 
         updatedList.sort((a, b) {
           final dateA = DateTime.tryParse(a.updatedAt) ?? DateTime(1900);
@@ -193,6 +223,8 @@ class _TeacherAchievementPageState extends State<TeacherAchievementPage> {
             futureAchievements = Future.value(_currentAchievements);
           });
         }
+      } else if (response.statusCode == 304) {
+        return;
       }
     } catch (e) {
       debugPrint("⚠️ Error refreshing achievements: $e");
@@ -291,7 +323,10 @@ class _TeacherAchievementPageState extends State<TeacherAchievementPage> {
                         "assets/icons/achievements.svg",
                         width: 20,
                         height: 20,
-                        color: Colors.white,
+                        colorFilter: const ColorFilter.mode(
+                          Colors.white,
+                          BlendMode.srcIn,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -403,7 +438,7 @@ class AchievementDetailPage extends StatelessWidget {
   const AchievementDetailPage({super.key, required this.achievement});
 
   bool _isPdf(String url) {
-    return url.toLowerCase().endsWith('.pdf');
+    return isPdfFileUrl(url);
   }
 
   @override

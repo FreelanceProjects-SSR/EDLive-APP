@@ -10,6 +10,11 @@ import 'package:school_app/config/config.dart';
 class SessionService {
   const SessionService._();
 
+  static const List<String> _preservedLogoutKeyPrefixes = <String>[
+    'dashboard_badge_baseline_student_',
+    'dashboard_badge_baseline_teacher_',
+  ];
+
   static Future<String> prepareLogout() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token')?.trim() ?? '';
@@ -52,6 +57,9 @@ class SessionService {
     final keys = prefs.getKeys().toList(growable: false);
 
     for (final key in keys) {
+      if (_preservedLogoutKeyPrefixes.any(key.startsWith)) {
+        continue;
+      }
       await prefs.remove(key);
     }
   }

@@ -8,6 +8,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:school_app/config/config.dart';
+import 'package:school_app/utils/class_sorter.dart';
 
 import '../../providers/teacher_dashboard_provider.dart';
 import '../../providers/teacher_task_provider.dart';
@@ -45,6 +46,8 @@ class _ToDoListPageState extends State<ToDoListPage> {
 
   List<SubjectModel> _subjectList = [];
   SubjectModel? _selectedSubject;
+  Map<int, String> _subjectDisplayNames = {};
+  bool _isLoadingSubjects = false;
 
   // New state variables for student-like UI
   Todo? _selectedTask;
@@ -111,14 +114,22 @@ class _ToDoListPageState extends State<ToDoListPage> {
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         setState(() {
-          _classList = data.map((item) {
-            return {
-              'class_id': item['class_id'],
-              'class_name': item['class_name'],
-              'class': item['class'],
-              'section': item['section'],
-            };
-          }).toList();
+          _classList =
+              data.map((item) {
+                return {
+                  'class_id': item['class_id'],
+                  'class_name': item['class_name'],
+                  'class': item['class'],
+                  'section': item['section'],
+                };
+              }).toList()..sort(
+                (a, b) => compareClassAndSection(
+                  classA: a['class']?.toString(),
+                  sectionA: a['section']?.toString(),
+                  classB: b['class']?.toString(),
+                  sectionB: b['section']?.toString(),
+                ),
+              );
 
           _classDisplayNames = {};
           for (var classItem in _classList) {
@@ -139,15 +150,42 @@ class _ToDoListPageState extends State<ToDoListPage> {
     }
   }
 
-  Future<void> _fetchSubjectsForClass() async {
+  Future<void> _fetchSubjectsForClass({
+    int? classId,
+    int? selectedSubjectId,
+  }) async {
+    if (mounted) {
+      setState(() {
+        _isLoadingSubjects = true;
+        if (classId != null) {
+          _subjectList = [];
+          _selectedSubject = null;
+        }
+      });
+    }
+
     try {
-      final subjects = await SubjectService().fetchSubjects();
+      final subjects = await SubjectService().fetchSubjects(classId: classId);
+      final selected = selectedSubjectId == null
+          ? null
+          : subjects
+                .where((subject) => subject.id == selectedSubjectId)
+                .firstOrNull;
+
+      if (!mounted) return;
       setState(() {
         _subjectList = subjects;
-        _selectedSubject = null;
+        _subjectDisplayNames = {
+          ..._subjectDisplayNames,
+          for (final subject in subjects) subject.id: subject.name,
+        };
+        _selectedSubject = selected;
+        _isLoadingSubjects = false;
       });
     } catch (e) {
       print('Error fetching subjects: $e');
+      if (!mounted) return;
+      setState(() => _isLoadingSubjects = false);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Error fetching subjects: $e')));
@@ -221,9 +259,7 @@ class _ToDoListPageState extends State<ToDoListPage> {
 
     // ✅ FILE VALIDATION (NEW)
     if (_selectedFile != null) {
-      final extension = _selectedFile!.extension?.toLowerCase();
-
-      if (extension == null || !kTodoUploadExtensions.contains(extension)) {
+      if (!isSupportedTodoUpload(_selectedFile!)) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('This file is not supported')),
         );
@@ -425,7 +461,14 @@ class _ToDoListPageState extends State<ToDoListPage> {
                   ),
                   if (!_showAddForm && _selectedTask == null)
                     ElevatedButton.icon(
-                      onPressed: () => setState(() => _showAddForm = true),
+                      onPressed: () {
+                        setState(() {
+                          _showAddForm = true;
+                          _selectedClass = null;
+                          _selectedSubject = null;
+                          _subjectList = [];
+                        });
+                      },
                       icon: const Icon(Icons.add, color: Colors.white),
                       label: const Text(
                         'Add',
@@ -465,10 +508,13 @@ class _ToDoListPageState extends State<ToDoListPage> {
           final className = task.classId != null
               ? _classDisplayNames[task.classId]
               : null;
-          final subjectName = _subjectList
-              .where((subject) => subject.id == task.subjectId)
-              .firstOrNull
-              ?.name;
+          final subjectName = task.subjectId == null
+              ? null
+              : _subjectDisplayNames[task.subjectId] ??
+                    _subjectList
+                        .where((subject) => subject.id == task.subjectId)
+                        .firstOrNull
+                        ?.name;
 
           return GestureDetector(
             onTap: () => setState(() => _selectedTask = task),
@@ -542,10 +588,13 @@ class _ToDoListPageState extends State<ToDoListPage> {
     final className = task.classId != null
         ? _classDisplayNames[task.classId]
         : null;
-    final subjectName = _subjectList
-        .where((subject) => subject.id == task.subjectId)
-        .firstOrNull
-        ?.name;
+    final subjectName = task.subjectId == null
+        ? null
+        : _subjectDisplayNames[task.subjectId] ??
+              _subjectList
+                  .where((subject) => subject.id == task.subjectId)
+                  .firstOrNull
+                  ?.name;
 
     return Expanded(
       child: Container(
@@ -660,17 +709,15 @@ class _ToDoListPageState extends State<ToDoListPage> {
                       });
 
                       if (_selectedClass != null) {
-                        _fetchSubjectsForClass().then((_) {
-                          SubjectModel? selected;
-                          try {
-                            selected = _subjectList.firstWhere(
-                              (s) => s.id == task.subjectId,
-                            );
-                          } catch (_) {
-                            selected = null;
-                          }
-                          setState(() => _selectedSubject = selected);
-                        });
+                        final classId = int.tryParse(
+                          _selectedClass!['class_id'].toString(),
+                        );
+                        unawaited(
+                          _fetchSubjectsForClass(
+                            classId: classId,
+                            selectedSubjectId: task.subjectId,
+                          ),
+                        );
                       }
                     },
                     icon: const Icon(Icons.edit),
@@ -767,6 +814,7 @@ class _ToDoListPageState extends State<ToDoListPage> {
                     const SizedBox(height: 10),
                     DropdownButton<Map<String, dynamic>>(
                       isExpanded: true,
+                      menuMaxHeight: 280,
                       value: _selectedClass,
                       hint: const Text("Choose Class"),
                       items: _classList
@@ -780,9 +828,16 @@ class _ToDoListPageState extends State<ToDoListPage> {
                           })
                           .toList(),
                       onChanged: (newValue) {
-                        setState(() => _selectedClass = newValue);
+                        setState(() {
+                          _selectedClass = newValue;
+                          _selectedSubject = null;
+                          _subjectList = [];
+                        });
                         if (newValue != null) {
-                          _fetchSubjectsForClass();
+                          final classId = int.tryParse(
+                            newValue['class_id'].toString(),
+                          );
+                          unawaited(_fetchSubjectsForClass(classId: classId));
                         }
                       },
                     ),
@@ -790,18 +845,47 @@ class _ToDoListPageState extends State<ToDoListPage> {
 
                     const Text("Select Subject"),
                     const SizedBox(height: 10),
-                    DropdownButton<SubjectModel>(
-                      isExpanded: true,
-                      value: _selectedSubject,
-                      hint: const Text("Choose Subject"),
-                      items: _subjectList.map((subjectItem) {
-                        return DropdownMenuItem<SubjectModel>(
-                          value: subjectItem,
-                          child: Text(subjectItem.name),
-                        );
-                      }).toList(),
-                      onChanged: (newValue) =>
-                          setState(() => _selectedSubject = newValue),
+                    SizedBox(
+                      height: 48,
+                      child: _isLoadingSubjects
+                          ? const Align(
+                              alignment: Alignment.centerLeft,
+                              child: SizedBox(
+                                height: 22,
+                                width: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            )
+                          : DropdownButton<SubjectModel>(
+                              isExpanded: true,
+                              menuMaxHeight: 220,
+                              value: _selectedSubject,
+                              hint: Text(
+                                _selectedClass == null
+                                    ? "Choose Class First"
+                                    : _subjectList.isEmpty
+                                    ? "No Subjects Assigned"
+                                    : "Choose Subject",
+                              ),
+                              items: _subjectList.map((subjectItem) {
+                                return DropdownMenuItem<SubjectModel>(
+                                  value: subjectItem,
+                                  child: Text(
+                                    subjectItem.code.isEmpty
+                                        ? subjectItem.name
+                                        : '${subjectItem.code} ${subjectItem.name}',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: _subjectList.isEmpty
+                                  ? null
+                                  : (newValue) => setState(
+                                      () => _selectedSubject = newValue,
+                                    ),
+                            ),
                     ),
                     const SizedBox(height: 24),
 
@@ -855,7 +939,7 @@ class _ToDoListPageState extends State<ToDoListPage> {
                             label: Text(
                               _selectedFile != null
                                   ? 'Selected: ${_selectedFile!.name}'
-                                  : 'Attach File (Image/Pdf/Word)',
+                                  : 'Attach File',
                             ),
                           ),
                         ),
@@ -863,7 +947,7 @@ class _ToDoListPageState extends State<ToDoListPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Allowed: JPG, PNG, PDF, DOC',
+                      'Allowed: JPG, PNG, PDF, DOC, DOCX, XLS, XLSX, TXT',
                       style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                     ),
                     const SizedBox(height: 30),

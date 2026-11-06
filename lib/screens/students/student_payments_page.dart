@@ -2,9 +2,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:school_app/providers/student_notification_dashboard_provider.dart';
 import 'package:school_app/screens/students/student_menu_drawer.dart';
 import 'package:school_app/widgets/student_app_bar.dart';
 
@@ -39,6 +41,24 @@ class _StudentPaymentsPageState extends State<StudentPaymentsPage> {
     _loadPayments();
   }
 
+  bool _isDuePayment(StudentPayment payment) {
+    final status = payment.paymentStatus.trim().toLowerCase();
+    return status == 'pending' || status == 'overdue' || status == 'due';
+  }
+
+  Future<void> _clearDashboardPaymentBadge() async {
+    final studentId = int.tryParse(widget.studentId);
+    if (studentId == null || !mounted) {
+      return;
+    }
+
+    await context.read<DashboardCountsProvider>().clearBadgeCountForStudent(
+      studentId: studentId,
+      itemType: 'payments',
+      refreshCounts: true,
+    );
+  }
+
   Future<void> _loadPayments() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -52,20 +72,25 @@ class _StudentPaymentsPageState extends State<StudentPaymentsPage> {
         widget.studentId,
       );
 
-      // ✅ Mark only due/overdue payments as viewed automatically
-      for (var p in payments) {
+      for (final p in payments.where(_isDuePayment)) {
         await markPaymentAsViewed(p.studentId, p.feeAssignmentId);
+      }
+
+      if (!mounted) {
+        return;
       }
 
       setState(() {
         _payments = payments;
+        _isLoading = false;
+        _hasError = false;
       });
 
-      setState(() {
-        _payments = payments;
-        _isLoading = false;
-      });
+      await _clearDashboardPaymentBadge();
     } catch (e) {
+      if (!mounted) {
+        return;
+      }
       setState(() {
         _hasError = true;
         _isLoading = false;
@@ -239,11 +264,7 @@ class _StudentPaymentsPageState extends State<StudentPaymentsPage> {
   }
 
   Widget _buildDueSection() {
-    final duePayments = _payments
-        .where(
-          (p) => p.paymentStatus == "pending" || p.paymentStatus == "overdue",
-        )
-        .toList();
+    final duePayments = _payments.where(_isDuePayment).toList();
 
     if (duePayments.isEmpty) {
       return const Center(child: Text("No due payments found."));

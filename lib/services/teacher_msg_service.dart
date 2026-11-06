@@ -33,7 +33,7 @@ class MessageService {
       body: jsonEncode(body),
     );
 
-    if (response.statusCode == 201) {
+    if (response.statusCode == 200 || response.statusCode == 201) {
       return true;
     } else {
       print('Error sending message: ${response.statusCode} - ${response.body}');

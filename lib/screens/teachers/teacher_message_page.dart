@@ -9,7 +9,7 @@ import 'package:school_app/models/teacher_class_student.dart';
 import 'package:school_app/services/teacher_class_student_list.dart';
 
 import 'package:school_app/models/class_section.dart';
-import 'package:school_app/services/class_section_service.dart';
+import 'package:school_app/services/teacher_class_section_service.dart';
 
 class TeacherMessagePage extends StatefulWidget {
   const TeacherMessagePage({super.key});
@@ -58,8 +58,21 @@ class _TeacherMessagePageState extends State<TeacherMessagePage> {
     setState(() => loadingClasses = true);
 
     try {
-      final service = ClassService();
-      final sections = await service.fetchClassSections();
+      final service = TeacherClassService();
+      final teacherClasses = await service.fetchTeacherClasses();
+      final sections = teacherClasses
+          .where((teacherClass) => teacherClass.id > 0)
+          .map(
+            (teacherClass) => ClassSection(
+              id: teacherClass.id,
+              className: teacherClass.className,
+              section: teacherClass.section,
+            ),
+          )
+          .toList();
+      if (!mounted) {
+        return;
+      }
       setState(() {
         classSections = sections;
         selectedClassSections = {for (var s in sections) s.id: false};
@@ -67,7 +80,9 @@ class _TeacherMessagePageState extends State<TeacherMessagePage> {
     } catch (e) {
       debugPrint("Error fetching class sections: $e");
     } finally {
-      setState(() => loadingClasses = false);
+      if (mounted) {
+        setState(() => loadingClasses = false);
+      }
     }
   }
 
@@ -212,6 +227,134 @@ class _TeacherMessagePageState extends State<TeacherMessagePage> {
       });
     } catch (e) {
       debugPrint("Error fetching students: $e");
+    }
+  }
+
+  int? _readStudentId(dynamic value) {
+    if (value is int && value > 0) {
+      return value;
+    }
+
+    final parsed = int.tryParse(value?.toString() ?? '');
+    return parsed != null && parsed > 0 ? parsed : null;
+  }
+
+  String _normalizeClassName(String value) {
+    return value.replaceAll(RegExp(r'\s+'), '').toLowerCase();
+  }
+
+  List<Student> _studentsForSections(List<ClassSection> sections) {
+    final selectedSectionIds = sections.map((section) => section.id).toSet();
+    final selectedNames = sections
+        .map((section) => _normalizeClassName(section.fullName))
+        .toSet();
+
+    return allStudents.where((student) {
+      final classId = student.classId;
+      if (classId != null && selectedSectionIds.contains(classId)) {
+        return true;
+      }
+
+      return selectedNames.contains(_normalizeClassName(student.className)) ||
+          selectedNames.contains(
+            _normalizeClassName('${student.className}${student.section}'),
+          );
+    }).toList();
+  }
+
+  Future<void> _sendMessages() async {
+    final selectedSections = classSections
+        .where((cls) => selectedClassSections[cls.id] == true)
+        .toList();
+
+    final recipients = <int>{};
+    for (final student in selectedStudents) {
+      final studentId = _readStudentId(student["id"]);
+      if (studentId != null) {
+        recipients.add(studentId);
+      }
+    }
+
+    for (final student in _studentsForSections(selectedSections)) {
+      if (student.id > 0) {
+        recipients.add(student.id);
+      }
+    }
+
+    if (recipients.isEmpty) {
+      final message = selectedSections.isEmpty
+          ? "Select at least one student or class"
+          : "No students found for selected class";
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+      return;
+    }
+
+    if (messageController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Please enter a message")));
+      return;
+    }
+
+    final token = await getToken();
+    if (token == null || token.trim().isEmpty) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Session expired. Please login again.")),
+      );
+      return;
+    }
+
+    final channels = <String>[];
+    if (sendSMS) channels.add("sms");
+    if (sendWhatsApp) channels.add("whatsapp");
+    if (sendEmail) channels.add("email");
+
+    if (channels.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Select at least one channel")),
+      );
+      return;
+    }
+
+    var allSuccess = true;
+    for (final studentId in recipients) {
+      final success = await MessageService.sendMessage(
+        token: token,
+        studentId: studentId,
+        messageText: messageController.text.trim(),
+        isAppreciation: true,
+        isMeetingRequest: false,
+        channels: channels,
+      );
+
+      if (!success) allSuccess = false;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    if (allSuccess) {
+      setState(() {
+        messageController.clear();
+        selectedStudents.clear();
+        studentSearchController.clear();
+        searchResults.clear();
+        selectedClassSections.updateAll((k, v) => false);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Messages sent successfully")),
+      );
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Some messages failed")));
     }
   }
 
@@ -617,115 +760,7 @@ class _TeacherMessagePageState extends State<TeacherMessagePage> {
                                       backgroundColor: Colors.blue,
                                       foregroundColor: Colors.white,
                                     ),
-                                    onPressed: () async {
-                                      final selectedSections = classSections
-                                          .where(
-                                            (cls) =>
-                                                selectedClassSections[cls.id] ==
-                                                true,
-                                          )
-                                          .toList();
-
-                                      if (selectedSections.isEmpty &&
-                                          selectedStudents.isEmpty) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              "Select at least one student or class",
-                                            ),
-                                          ),
-                                        );
-                                        return;
-                                      }
-
-                                      if (messageController.text
-                                          .trim()
-                                          .isEmpty) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              "Please enter a message",
-                                            ),
-                                          ),
-                                        );
-                                        return;
-                                      }
-
-                                      final token = await getToken();
-                                      if (token == null) return;
-
-                                      bool allSuccess = true;
-
-                                      final channels = <String>[];
-                                      if (sendSMS) channels.add("sms");
-                                      if (sendWhatsApp)
-                                        channels.add("whatsapp");
-                                      if (sendEmail) channels.add("email");
-
-                                      if (channels.isEmpty) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              "Select at least one channel",
-                                            ),
-                                          ),
-                                        );
-                                        return;
-                                      }
-
-                                      for (var student in selectedStudents) {
-                                        final success =
-                                            await MessageService.sendMessage(
-                                              token: token,
-                                              studentId: student["id"],
-                                              messageText:
-                                                  messageController.text,
-                                              isAppreciation: true,
-                                              isMeetingRequest: false,
-                                              channels: channels,
-                                            );
-
-                                        if (!success) allSuccess = false;
-                                      }
-
-                                      if (allSuccess) {
-                                        setState(() {
-                                          messageController.clear();
-                                          selectedStudents.clear();
-                                          studentSearchController.clear();
-                                          searchResults.clear();
-                                          selectedClassSections.updateAll(
-                                            (k, v) => false,
-                                          );
-                                        });
-
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              "Messages sent successfully",
-                                            ),
-                                          ),
-                                        );
-                                      } else {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              "Some messages failed",
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                    },
+                                    onPressed: _sendMessages,
                                     child: const Text("Send"),
                                   ),
                                 ),

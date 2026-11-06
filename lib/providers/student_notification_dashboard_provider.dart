@@ -61,6 +61,19 @@ class DashboardCountsProvider with ChangeNotifier {
 
   String _storageKey(int studentId) => '$_storagePrefix$studentId';
 
+  int _parseCount(dynamic value) {
+    if (value is int) {
+      return value;
+    }
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  void _loadBaselineCounts(SharedPreferences prefs, int studentId) {
+    _baselineCounts
+      ..clear()
+      ..addAll(_decodeBaselineCounts(prefs.getString(_storageKey(studentId))));
+  }
+
   Map<String, int> _decodeBaselineCounts(String? rawValue) {
     if (rawValue == null || rawValue.isEmpty) {
       return <String, int>{};
@@ -177,11 +190,7 @@ class DashboardCountsProvider with ChangeNotifier {
         _resetVisibleState();
         notifyListeners();
       }
-      _baselineCounts
-        ..clear()
-        ..addAll(
-          _decodeBaselineCounts(prefs.getString(_storageKey(studentId))),
-        );
+      _loadBaselineCounts(prefs, studentId);
 
       final response = await http.get(
         AppConfig.apiUri(
@@ -197,12 +206,12 @@ class DashboardCountsProvider with ChangeNotifier {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
 
-        _rawCounts['notifications'] = data["notifications"] ?? 0;
-        _rawCounts['todo'] = data["todo"] ?? 0;
-        _rawCounts['payments'] = data["payments"] ?? 0;
-        _rawCounts['messages'] = data["messages"] ?? 0;
-        _rawCounts['library'] = data["library"] ?? 0;
-        _rawCounts['achievements'] = data["achievements"] ?? 0;
+        _rawCounts['notifications'] = _parseCount(data["notifications"]);
+        _rawCounts['todo'] = _parseCount(data["todo"]);
+        _rawCounts['payments'] = _parseCount(data["payments"]);
+        _rawCounts['messages'] = _parseCount(data["messages"]);
+        _rawCounts['library'] = _parseCount(data["library"]);
+        _rawCounts['achievements'] = _parseCount(data["achievements"]);
         _latestMessages
           ..clear()
           ..addAll(_decodeLatestMessages(data["latest_messages"]));
@@ -254,5 +263,27 @@ class DashboardCountsProvider with ChangeNotifier {
 
     await _persistBaselineCounts();
     notifyListeners();
+  }
+
+  Future<void> clearBadgeCountForStudent({
+    required int studentId,
+    required String itemType,
+    bool refreshCounts = false,
+  }) async {
+    if (!_rawCounts.containsKey(itemType)) {
+      return;
+    }
+
+    if (refreshCounts) {
+      await fetchDashboardCounts(studentId);
+    }
+
+    if (_currentStudentId != studentId) {
+      final prefs = await SharedPreferences.getInstance();
+      _currentStudentId = studentId;
+      _loadBaselineCounts(prefs, studentId);
+    }
+
+    await clearBadgeCount(itemType);
   }
 }

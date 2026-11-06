@@ -178,6 +178,7 @@ class _ClassStudentListPageState extends State<ClassStudentListPage> {
                               ),
                               child: DropdownButton<String>(
                                 isExpanded: true,
+                                menuMaxHeight: 280,
                                 value: selectedClassId,
                                 underline: const SizedBox(),
                                 icon: const Icon(Icons.arrow_drop_down),

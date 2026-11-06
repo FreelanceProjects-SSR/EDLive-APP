@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:school_app/config/config.dart';
+import 'package:school_app/utils/class_sorter.dart';
 
 class TeacherClass {
   final int id;
@@ -17,13 +18,24 @@ class TeacherClass {
   });
 
   factory TeacherClass.fromJson(Map<String, dynamic> json) {
+    final fullName = json['class_name']?.toString() ?? '';
+    final className = json['class']?.toString() ?? fullName;
+    final section = json['section']?.toString() ?? '';
     return TeacherClass(
-      id: json['class_id'],
-      className: json['class'] ?? '',
-      section: json['section'] ?? '',
-      fullName: json['class_name'] ?? '',
+      id: _readInt(json['class_id'] ?? json['id'] ?? json['classId']),
+      className: className,
+      section: section,
+      fullName: fullName.isNotEmpty ? fullName : '$className$section',
     );
   }
+}
+
+int _readInt(dynamic value) {
+  if (value is int) {
+    return value;
+  }
+
+  return int.tryParse(value?.toString() ?? '') ?? 0;
 }
 
 class TeacherClassService {
@@ -47,7 +59,14 @@ class TeacherClassService {
 
     if (response.statusCode == 200) {
       final List data = jsonDecode(response.body);
-      return data.map((e) => TeacherClass.fromJson(e)).toList();
+      return data.map((e) => TeacherClass.fromJson(e)).toList()..sort(
+        (a, b) => compareClassAndSection(
+          classA: a.className,
+          sectionA: a.section,
+          classB: b.className,
+          sectionB: b.section,
+        ),
+      );
     } else {
       throw Exception("Failed to load teacher classes: ${response.body}");
     }

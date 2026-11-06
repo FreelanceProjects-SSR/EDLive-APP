@@ -13,19 +13,52 @@
         {
             "name": "school_app",
             "request": "launch",
-            "type": "dart"
+            "type": "dart",
+            "deviceId": "chrome",
+            "args": [
+                "--web-hostname",
+                "127.0.0.1",
+                "--web-port",
+                "8081",
+                "--dart-define",
+                "SERVER_ORIGIN=http://ec2-51-20-9-243.eu-north-1.compute.amazonaws.com",
+                "--dart-define",
+                "API_BASE_URL=http://ec2-51-20-9-243.eu-north-1.compute.amazonaws.com/api"
+            ]
         },
         {
             "name": "school_app (profile mode)",
             "request": "launch",
             "type": "dart",
-            "flutterMode": "profile"
+            "flutterMode": "profile",
+            "deviceId": "chrome",
+            "args": [
+                "--web-hostname",
+                "127.0.0.1",
+                "--web-port",
+                "8081",
+                "--dart-define",
+                "SERVER_ORIGIN=http://ec2-51-20-9-243.eu-north-1.compute.amazonaws.com",
+                "--dart-define",
+                "API_BASE_URL=http://ec2-51-20-9-243.eu-north-1.compute.amazonaws.com/api"
+            ]
         },
         {
             "name": "school_app (release mode)",
             "request": "launch",
             "type": "dart",
-            "flutterMode": "release"
+            "flutterMode": "release",
+            "deviceId": "chrome",
+            "args": [
+                "--web-hostname",
+                "127.0.0.1",
+                "--web-port",
+                "8081",
+                "--dart-define",
+                "SERVER_ORIGIN=http://ec2-51-20-9-243.eu-north-1.compute.amazonaws.com",
+                "--dart-define",
+                "API_BASE_URL=http://ec2-51-20-9-243.eu-north-1.compute.amazonaws.com/api"
+            ]
         }
     ]
 }

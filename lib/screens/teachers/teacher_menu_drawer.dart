@@ -2,10 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 
 import 'package:school_app/screens/login_page.dart';
 import 'package:school_app/services/session_service.dart';
+import 'package:school_app/utils/teacher_id_resolver.dart';
 
 import 'teacher_achivement_page.dart';
 import 'teacher_report_page.dart';
@@ -170,16 +170,21 @@ class _MenuDrawerState extends State<MenuDrawer> {
                             );
                           } else if (item['route'] == '/transport') {
                             final prefs = await SharedPreferences.getInstance();
-                            final userDataString = prefs.getString('user_data');
-                            int staffId = 0;
+                            final staffId = TeacherIdResolver.resolveFromPrefs(
+                              prefs,
+                            );
 
-                            if (userDataString != null) {
-                              final userData = json.decode(userDataString);
-                              if (userData['staffid'] != null &&
-                                  userData['staffid'].isNotEmpty) {
-                                staffId =
-                                    userData['staffid'][0]; // first staffId
-                              }
+                            if (!context.mounted) return;
+
+                            if (staffId == null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Teacher ID not found. Please login again.',
+                                  ),
+                                ),
+                              );
+                              return;
                             }
 
                             Navigator.push(

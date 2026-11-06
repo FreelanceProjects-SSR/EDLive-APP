@@ -252,6 +252,7 @@ class _TeacherResourceAddPageState extends State<TeacherResourceAddPage> {
                                           : DropdownButton<TeacherClassModel>(
                                               value: selectedClass,
                                               isExpanded: true,
+                                              menuMaxHeight: 280,
                                               underline: const SizedBox(),
                                               items: classList.map((cls) {
                                                 return DropdownMenuItem(

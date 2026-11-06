@@ -1,11 +1,12 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:school_app/config/config.dart';
+import 'package:school_app/utils/api_response_parser.dart';
 import '../models/teacher_student_classsection.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class StudentService {
-  Future<List<StudentClassSection>> fetchStudents() async {
+  Future<List<StudentClassSection>> fetchStudents({int? classId}) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token');
 
@@ -13,14 +14,50 @@ class StudentService {
       throw Exception("Auth token not found.");
     }
 
-    final response = await http.get(
+    if (classId != null) {
+      try {
+        return await _fetchStudentsFromUri(
+          Uri.parse(
+            '${AppConfig.baseUrl}/quicknotes/classes/$classId/students',
+          ),
+          token,
+        );
+      } catch (_) {
+        final students = await _fetchStudentsFromUri(
+          Uri.parse('${AppConfig.baseUrl}/staff/staff/students/list'),
+          token,
+        );
+
+        final filtered = students
+            .where((student) => student.classId == classId)
+            .toList();
+        return filtered;
+      }
+    }
+
+    return _fetchStudentsFromUri(
       Uri.parse('${AppConfig.baseUrl}/staff/staff/students/list'),
+      token,
+    );
+  }
+
+  Future<List<StudentClassSection>> _fetchStudentsFromUri(
+    Uri uri,
+    String token,
+  ) async {
+    final response = await http.get(
+      uri,
       headers: {'accept': '*/*', 'Authorization': 'Bearer $token'},
     );
 
     if (response.statusCode == 200) {
-      final List<dynamic> data = jsonDecode(response.body);
-      return data.map((json) => StudentClassSection.fromJson(json)).toList();
+      final data = extractJsonList(
+        jsonDecode(response.body),
+        preferredKeys: const <String>['students', 'data'],
+      );
+      return data
+          .map((json) => StudentClassSection.fromJson(asStringKeyedMap(json)))
+          .toList();
     } else {
       throw Exception('Failed to fetch students');
     }

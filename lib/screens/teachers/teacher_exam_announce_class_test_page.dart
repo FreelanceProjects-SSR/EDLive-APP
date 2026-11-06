@@ -7,7 +7,6 @@ import 'package:http/http.dart' as http;
 import 'package:school_app/widgets/teacher_app_bar.dart';
 import 'teacher_menu_drawer.dart';
 
-import 'package:school_app/services/announce_exam_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:school_app/models/exam_type_model.dart';
@@ -16,10 +15,15 @@ import 'package:school_app/config/config.dart';
 
 class AnnounceClassTestPage extends StatefulWidget {
   final int? examId;
+  final String classId;
   final String className;
 
-  const AnnounceClassTestPage({Key? key, this.examId, required this.className})
-    : super(key: key);
+  const AnnounceClassTestPage({
+    Key? key,
+    this.examId,
+    this.classId = '',
+    required this.className,
+  }) : super(key: key);
 
   @override
   State<AnnounceClassTestPage> createState() => _AnnounceClassTestPageState();
@@ -42,14 +46,19 @@ class _AnnounceClassTestPageState extends State<AnnounceClassTestPage> {
   bool _isEditMode = false;
 
   String? selectedClassName;
+  String? selectedClassId;
 
   List<ExamType> examTypes = [];
   ExamType? selectedExamType;
+  int? _selectedExamTypeId;
   bool isExamTypeLoading = true;
 
   @override
   void initState() {
     super.initState();
+    selectedClassId = widget.classId.trim().isNotEmpty
+        ? widget.classId.trim()
+        : null;
     loadClassName();
     fetchExamTypes();
 
@@ -63,20 +72,32 @@ class _AnnounceClassTestPageState extends State<AnnounceClassTestPage> {
     try {
       final service = ExamTypeService();
       final types = await service.fetchExamTypes();
+      if (!mounted) {
+        return;
+      }
       setState(() {
         examTypes = types;
         isExamTypeLoading = false;
       });
+      _syncSelectedExamType();
     } catch (e) {
-      setState(() => isExamTypeLoading = false);
+      if (mounted) {
+        setState(() => isExamTypeLoading = false);
+      }
       print("Error loading exam types: $e");
     }
   }
 
   Future<void> loadClassName() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) {
+      return;
+    }
     setState(() {
-      selectedClassName = prefs.getString('className') ?? widget.className;
+      selectedClassName = widget.className.trim().isNotEmpty
+          ? widget.className
+          : prefs.getString('className');
+      selectedClassId ??= prefs.getString('classId');
     });
   }
 
@@ -94,43 +115,25 @@ class _AnnounceClassTestPageState extends State<AnnounceClassTestPage> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body)['data'];
+        if (!mounted) {
+          return;
+        }
 
         setState(() {
           titleController.text = data['title'] ?? '';
           subjectController.text = data['subject'] ?? '';
           descriptionController.text = data['description'] ?? '';
+          selectedClassId ??= data['class_id']?.toString();
 
           DateTime dt = DateTime.parse(data['exam_date']);
           dateController.text = DateFormat('d, MMM. yyyy').format(dt);
           timeController.text = DateFormat('h:mm a').format(dt);
         });
 
-        // Match fetched exam_type_id with dropdown list
-        final fetchedExamTypeId = data['exam_type_id'];
-        if (examTypes.isNotEmpty) {
-          final matchedType = examTypes.firstWhere(
-            (type) => type.id == fetchedExamTypeId,
-            orElse: () => examTypes.first,
-          );
-          setState(() {
-            selectedExamType = matchedType;
-            examTypeController.text = matchedType.examType;
-          });
-        } else {
-          // Retry if examTypes not loaded yet
-          Future.delayed(const Duration(milliseconds: 300), () {
-            if (examTypes.isNotEmpty) {
-              final matchedType = examTypes.firstWhere(
-                (type) => type.id == fetchedExamTypeId,
-                orElse: () => examTypes.first,
-              );
-              setState(() {
-                selectedExamType = matchedType;
-                examTypeController.text = matchedType.examType;
-              });
-            }
-          });
-        }
+        _selectedExamTypeId = data['exam_type_id'] is int
+            ? data['exam_type_id'] as int
+            : int.tryParse(data['exam_type_id']?.toString() ?? '');
+        _syncSelectedExamType();
       } else {
         print("Failed to load exam details");
       }
@@ -414,14 +417,37 @@ class _AnnounceClassTestPageState extends State<AnnounceClassTestPage> {
                     child: ElevatedButton(
                       onPressed: () async {
                         // ✅ Validation
-                        if (titleController.text.isEmpty ||
-                            subjectController.text.isEmpty ||
-                            descriptionController.text.isEmpty ||
+                        if (titleController.text.trim().isEmpty ||
+                            subjectController.text.trim().isEmpty ||
+                            descriptionController.text.trim().isEmpty ||
                             dateController.text.isEmpty ||
                             timeController.text.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text("Please fill all fields"),
+                            ),
+                          );
+                          return;
+                        }
+
+                        final classId = int.tryParse(
+                          (selectedClassId ?? '').trim(),
+                        );
+                        if (classId == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                "Class not found. Please select a class again.",
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+
+                        if (selectedExamType == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Please select an exam type"),
                             ),
                           );
                           return;
@@ -436,17 +462,14 @@ class _AnnounceClassTestPageState extends State<AnnounceClassTestPage> {
 
                         final prefs = await SharedPreferences.getInstance();
                         final token = prefs.getString('auth_token') ?? '';
-                        final classId = selectedClassName != null
-                            ? prefs.getString('classId') ?? ''
-                            : ''; // keep this if you want fallback
 
                         final examData = {
-                          "title": titleController.text,
-                          "subject": subjectController.text,
+                          "title": titleController.text.trim(),
+                          "subject": subjectController.text.trim(),
                           "exam_date": isoString,
                           "class_id": classId,
-                          "description": descriptionController.text,
-                          "exam_type_id": selectedExamType?.id ?? 1,
+                          "description": descriptionController.text.trim(),
+                          "exam_type_id": selectedExamType!.id,
                         };
 
                         final url = _isEditMode
@@ -457,6 +480,7 @@ class _AnnounceClassTestPageState extends State<AnnounceClassTestPage> {
 
                         final headers = {
                           'Content-Type': 'application/json',
+                          'Accept': 'application/json',
                           'Authorization': 'Bearer $token',
                         };
 
@@ -487,12 +511,14 @@ class _AnnounceClassTestPageState extends State<AnnounceClassTestPage> {
                             );
                           }
                         } else {
+                          final message = _extractErrorMessage(response.body);
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
-                                _isEditMode
-                                    ? "Failed to update class test"
-                                    : "Failed to announce class test",
+                                message ??
+                                    (_isEditMode
+                                        ? "Failed to update class test"
+                                        : "Failed to announce class test"),
                               ),
                             ),
                           );
@@ -514,5 +540,37 @@ class _AnnounceClassTestPageState extends State<AnnounceClassTestPage> {
         ),
       ),
     );
+  }
+
+  void _syncSelectedExamType() {
+    if (examTypes.isEmpty) {
+      return;
+    }
+
+    final matchedType = examTypes.firstWhere(
+      (type) => type.id == _selectedExamTypeId,
+      orElse: () => examTypes.first,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      selectedExamType = matchedType;
+      examTypeController.text = matchedType.examType;
+    });
+  }
+
+  String? _extractErrorMessage(String responseBody) {
+    try {
+      final decoded = json.decode(responseBody);
+      if (decoded is Map<String, dynamic>) {
+        final message = decoded['message'] ?? decoded['error'];
+        return message?.toString();
+      }
+    } catch (_) {}
+
+    return null;
   }
 }

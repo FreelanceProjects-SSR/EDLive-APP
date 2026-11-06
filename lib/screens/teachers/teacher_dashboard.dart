@@ -11,6 +11,7 @@ import 'package:school_app/screens/teachers/todo_list_screen.dart';
 import 'package:school_app/screens/students/select_child_page.dart';
 import 'package:school_app/providers/teacher_settings_provider.dart';
 import 'package:school_app/providers/teacher_dashboard_provider.dart';
+import 'package:school_app/utils/teacher_id_resolver.dart';
 
 import 'teacher_menu_drawer.dart';
 import 'teacher_attendance_page.dart';
@@ -403,20 +404,21 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage>
                               onTap: () async {
                                 final prefs =
                                     await SharedPreferences.getInstance();
-                                final userDataString = prefs.getString(
-                                  'user_data',
-                                );
-                                int staffId = 0;
-
-                                if (userDataString != null) {
-                                  final userData = json.decode(userDataString);
-                                  if (userData['staffid'] != null &&
-                                      userData['staffid'].isNotEmpty) {
-                                    staffId = userData['staffid'][0];
-                                  }
-                                }
+                                final staffId =
+                                    TeacherIdResolver.resolveFromPrefs(prefs);
 
                                 if (!context.mounted) return;
+
+                                if (staffId == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Teacher ID not found. Please login again.',
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
 
                                 Navigator.push(
                                   context,

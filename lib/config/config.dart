@@ -1,16 +1,18 @@
 import 'package:flutter/foundation.dart';
 
 class AppConfig {
+  static const String ec2ServerOrigin =
+      'https://edlive-admin-web-frontend-nine.vercel.app';
+
   // ✅ Production backend
   // static const String defaultServerOrigin =
   //     'https://schoolmanagement.canadacentral.cloudapp.azure.com';
 
-  static const String defaultServerOrigin =
-      'https://edlive-web-backend-1.onrender.com';
+  static const String defaultServerOrigin = ec2ServerOrigin;
 
   // ✅ Local backend
-  static const String localServerOrigin = 'http://localhost:5000';
-  static const String androidEmulatorServerOrigin = 'http://10.0.2.2:5000';
+  static const String localServerOrigin = ec2ServerOrigin;
+  static const String androidEmulatorServerOrigin = ec2ServerOrigin;
 
   // ✅ Optional local web proxy (only if you really use one)
   static const String localProxyOrigin = 'http://127.0.0.1:8081';
@@ -47,10 +49,7 @@ class AppConfig {
       return _normalizeOrigin(_serverOriginOverride);
     }
 
-    // 2. Mobile/desktop local runs use the local backend by default.
-    // Flutter Web on localhost should still use production unless SERVER_ORIGIN
-    // is passed, otherwise it can hit a different local database and reject
-    // valid deployed credentials.
+    // 2. If running Flutter Web in localhost, use local backend
     if (_shouldUseLocalBackend) {
       return _resolvedLocalServerOrigin;
     }
@@ -149,7 +148,14 @@ class AppConfig {
 
   /// ✅ Local detection
   static bool get _shouldUseLocalBackend {
-    return !kIsWeb;
+    // Mobile/desktop local run
+    if (!kIsWeb) {
+      return true;
+    }
+
+    // Web local run
+    final host = Uri.base.host.toLowerCase();
+    return host == 'localhost' || host == '127.0.0.1';
   }
 
   static String get _resolvedLocalServerOrigin {

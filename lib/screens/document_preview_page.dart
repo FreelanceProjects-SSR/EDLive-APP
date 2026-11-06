@@ -79,6 +79,7 @@ class DocumentPreviewPage extends StatelessWidget {
           child: Image.network(
             fileUrl,
             fit: BoxFit.contain,
+            webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
             errorBuilder: (context, error, stackTrace) {
               return const Center(
                 child: Text(

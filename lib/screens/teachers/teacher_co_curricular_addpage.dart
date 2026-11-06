@@ -442,6 +442,7 @@ class _AddCoCurricularActivityPageState
                                       const SizedBox(height: 5),
                                       DropdownButtonFormField<TeacherClass>(
                                         initialValue: selectedClass,
+                                        menuMaxHeight: 280,
                                         items: classSections
                                             .map(
                                               (teacherClass) =>

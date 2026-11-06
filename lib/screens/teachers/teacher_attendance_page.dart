@@ -21,6 +21,7 @@ import 'package:school_app/providers/teacher_attendance_provider.dart';
 import 'package:school_app/services/teacher_student_classsection.dart';
 import 'package:school_app/models/teacher_student_classsection.dart';
 import 'package:school_app/config/config.dart';
+import 'package:school_app/utils/class_sorter.dart';
 
 final DateTime now = DateTime.now();
 final String formattedDate = DateFormat(
@@ -167,9 +168,15 @@ class _TeacherAttendanceDayTabState extends State<TeacherAttendanceDayTab> {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        final loadedSections = data
-            .map((e) => ClassSection.fromJson(e))
-            .toList();
+        final loadedSections =
+            data.map((e) => ClassSection.fromJson(e)).toList()..sort(
+              (a, b) => compareClassAndSection(
+                classA: a.className,
+                sectionA: a.section,
+                classB: b.className,
+                sectionB: b.section,
+              ),
+            );
 
         setState(() {
           classSections = loadedSections;
@@ -483,6 +490,7 @@ class _TeacherAttendanceDayTabState extends State<TeacherAttendanceDayTab> {
                         color: Color(0xFF2E3192),
                       ),
                       dropdownColor: Colors.white,
+                      menuMaxHeight: 280,
                       style: const TextStyle(
                         color: Color(0xFF29ABE2),
                         fontWeight: FontWeight.bold,
@@ -716,9 +724,15 @@ class _TeacherAttendanceMonthTabState extends State<TeacherAttendanceMonthTab> {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        final loadedSections = data
-            .map((e) => ClassSection.fromJson(e))
-            .toList();
+        final loadedSections =
+            data.map((e) => ClassSection.fromJson(e)).toList()..sort(
+              (a, b) => compareClassAndSection(
+                classA: a.className,
+                sectionA: a.section,
+                classB: b.className,
+                sectionB: b.section,
+              ),
+            );
 
         setState(() {
           classSections = loadedSections;
@@ -856,6 +870,7 @@ class _TeacherAttendanceMonthTabState extends State<TeacherAttendanceMonthTab> {
                           Icons.arrow_drop_down,
                           color: Color(0xFF2E3192),
                         ),
+                        menuMaxHeight: 280,
                         style: const TextStyle(
                           color: Color(0xFF29ABE2),
                           fontWeight: FontWeight.bold,
@@ -992,9 +1007,15 @@ class _TeacherAttendanceYearTabState extends State<TeacherAttendanceYearTab> {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        final loadedSections = data
-            .map((e) => ClassSection.fromJson(e))
-            .toList();
+        final loadedSections =
+            data.map((e) => ClassSection.fromJson(e)).toList()..sort(
+              (a, b) => compareClassAndSection(
+                classA: a.className,
+                sectionA: a.section,
+                classB: b.className,
+                sectionB: b.section,
+              ),
+            );
 
         setState(() {
           classSections = loadedSections;
@@ -1130,6 +1151,7 @@ class _TeacherAttendanceYearTabState extends State<TeacherAttendanceYearTab> {
                           Icons.arrow_drop_down,
                           color: Color(0xFF2E3192),
                         ),
+                        menuMaxHeight: 280,
                         style: const TextStyle(
                           color: Color(0xFF29ABE2),
                           fontWeight: FontWeight.bold,

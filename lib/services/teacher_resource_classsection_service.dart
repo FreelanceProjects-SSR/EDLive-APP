@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:school_app/config/config.dart';
+import 'package:school_app/utils/class_sorter.dart';
 import '../models/teacher_resource_class_model.dart';
 
 class TeacherResourceService {
@@ -23,7 +24,8 @@ class TeacherResourceService {
 
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(response.body);
-      return data.map((e) => TeacherClassModel.fromJson(e)).toList();
+      return data.map((e) => TeacherClassModel.fromJson(e)).toList()
+        ..sort((a, b) => compareClassLabels(a.className, b.className));
     } else {
       throw Exception("Failed to load classes (Code: ${response.statusCode})");
     }

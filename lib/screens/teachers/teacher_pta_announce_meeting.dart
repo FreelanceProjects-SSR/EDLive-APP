@@ -145,6 +145,7 @@ class _AnnounceMeetingPageState extends State<AnnounceMeetingPage> {
                   ? const CircularProgressIndicator()
                   : DropdownButtonFormField<ClassSection>(
                       value: selectedClassSection,
+                      menuMaxHeight: 280,
                       decoration: const InputDecoration(
                         labelText: "Select class",
                         border: OutlineInputBorder(),

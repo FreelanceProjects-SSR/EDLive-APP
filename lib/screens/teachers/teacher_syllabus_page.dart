@@ -271,6 +271,7 @@ class _TeacherSyllabusPageState extends State<TeacherSyllabusPage> {
                                                       ClassSection
                                                     >(
                                                       isExpanded: true,
+                                                      menuMaxHeight: 280,
                                                       icon: const Icon(
                                                         Icons.arrow_drop_down,
                                                         color: Color(
@@ -527,6 +528,7 @@ class _TeacherSyllabusPageState extends State<TeacherSyllabusPage> {
           DropdownButtonFormField<TeacherClass>(
             value: _selectedAddClass,
             isExpanded: true,
+            menuMaxHeight: 280,
             decoration: InputDecoration(
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),

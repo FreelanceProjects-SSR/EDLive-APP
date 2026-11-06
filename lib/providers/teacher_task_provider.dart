@@ -20,7 +20,30 @@ const List<String> kTodoUploadExtensions = [
   'pdf',
   'doc',
   'docx',
+  'xls',
+  'xlsx',
+  'txt',
 ];
+
+String? todoUploadExtension(PlatformFile pickedFile) {
+  final directExtension = pickedFile.extension?.trim().toLowerCase();
+  if (directExtension != null && directExtension.isNotEmpty) {
+    return directExtension;
+  }
+
+  final fileName = pickedFile.name.trim().toLowerCase();
+  final dotIndex = fileName.lastIndexOf('.');
+  if (dotIndex < 0 || dotIndex == fileName.length - 1) {
+    return null;
+  }
+
+  return fileName.substring(dotIndex + 1);
+}
+
+bool isSupportedTodoUpload(PlatformFile pickedFile) {
+  final extension = todoUploadExtension(pickedFile);
+  return extension != null && kTodoUploadExtensions.contains(extension);
+}
 
 class TeacherTaskProvider with ChangeNotifier {
   static const Map<String, String> _mimeTypeByExtension = {
@@ -34,6 +57,9 @@ class TeacherTaskProvider with ChangeNotifier {
     'doc': 'application/msword',
     'docx':
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'xls': 'application/vnd.ms-excel',
+    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'txt': 'text/plain',
   };
 
   final String _baseUrl = '${AppConfig.baseUrl}/todos';
@@ -100,9 +126,10 @@ class TeacherTaskProvider with ChangeNotifier {
     final pathOrName = (pickedFile.path != null && pickedFile.path!.isNotEmpty)
         ? pickedFile.path!
         : pickedFile.name;
+    final extension = todoUploadExtension(pickedFile);
 
-    return lookupMimeType(pathOrName, headerBytes: headerBytes) ??
-        _mimeTypeByExtension[pickedFile.extension?.toLowerCase()] ??
+    return _mimeTypeByExtension[extension] ??
+        lookupMimeType(pathOrName, headerBytes: headerBytes) ??
         'application/octet-stream';
   }
 

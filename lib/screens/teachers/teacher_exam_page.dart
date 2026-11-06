@@ -11,6 +11,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:school_app/config/config.dart';
+import 'package:school_app/services/teacher_class_section_service.dart';
+import 'package:school_app/utils/class_sorter.dart';
 
 class TeacherExamPage extends StatefulWidget {
   const TeacherExamPage({super.key});
@@ -65,33 +67,66 @@ class _TeacherExamPageState extends State<TeacherExamPage>
       exams = [];
     }
 
+    if (!mounted) {
+      return;
+    }
     setState(() => isExamLoading = false);
   }
 
   Future<void> fetchClasses() async {
-    final url = Uri.parse('${AppConfig.baseUrl}/master/classes');
-
     try {
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
-        setState(() {
-          classList = data.map((json) => ClassSection.fromJson(json)).toList();
-          selectedClass = classList.isNotEmpty ? classList[0] : null;
-          if (selectedClass != null) {
-            fetchExamsForClass(selectedClass!.id.toString());
-          }
+      final teacherClasses = await TeacherClassService().fetchTeacherClasses();
+      final classes =
+          teacherClasses
+              .where((teacherClass) => teacherClass.id > 0)
+              .map(_classSectionFromTeacherClass)
+              .toList()
+            ..sort(
+              (a, b) => compareClassAndSection(
+                classA: a.className,
+                sectionA: a.section,
+                classB: b.className,
+                sectionB: b.section,
+              ),
+            );
 
-          isLoading = false;
-        });
-      } else {
-        setState(() => isLoading = false);
-        // Handle error
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        classList = classes;
+        selectedClass = classList.isNotEmpty ? classList[0] : null;
+        isLoading = false;
+        isExamLoading = selectedClass != null;
+      });
+
+      if (selectedClass != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('classId', selectedClass!.id.toString());
+        await prefs.setString('className', selectedClass!.fullName);
+        await fetchExamsForClass(selectedClass!.id.toString());
       }
     } catch (e) {
-      setState(() => isLoading = false);
-      // Handle error
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        classList = [];
+        selectedClass = null;
+        exams = [];
+        isLoading = false;
+        isExamLoading = false;
+      });
     }
+  }
+
+  ClassSection _classSectionFromTeacherClass(TeacherClass teacherClass) {
+    return ClassSection(
+      id: teacherClass.id,
+      className: teacherClass.className,
+      section: teacherClass.section,
+    );
   }
 
   @override
@@ -198,6 +233,7 @@ class _TeacherExamPageState extends State<TeacherExamPage>
                                   underline: const SizedBox(),
                                   icon: const Icon(Icons.arrow_drop_down),
                                   dropdownColor: Colors.white,
+                                  menuMaxHeight: 280,
                                   selectedItemBuilder: (context) {
                                     return classList.map((cls) {
                                       return Align(
@@ -327,6 +363,7 @@ class _TeacherExamPageState extends State<TeacherExamPage>
                     context,
                     MaterialPageRoute(
                       builder: (context) => AnnounceClassTestPage(
+                        classId: selectedClass?.id.toString() ?? '',
                         className:
                             selectedClass?.fullName ?? '', // display in UI
                       ),
@@ -438,6 +475,7 @@ class _TeacherExamPageState extends State<TeacherExamPage>
                 MaterialPageRoute(
                   builder: (context) => AnnounceClassTestPage(
                     examId: exam.id,
+                    classId: selectedClass?.id.toString() ?? '',
                     className: selectedClass?.fullName ?? '',
                   ),
                 ),

@@ -6,6 +6,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
 import 'package:school_app/config/config.dart';
 import 'package:school_app/screens/students/student_menu_drawer.dart';
+import 'package:school_app/utils/api_response_parser.dart';
+import 'package:school_app/utils/file_url_helper.dart';
 import 'package:school_app/widgets/student_app_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
@@ -45,7 +47,17 @@ class Achievement {
       category: json['category'] ?? '',
       achievementDate: json['achievement_date'] ?? '',
       awardedBy: json['awarded_by'] ?? '',
-      evidenceUrl: json['evidence_url'] ?? '',
+      evidenceUrl:
+          (json['evidence_url'] ??
+                  json['evidenceUrl'] ??
+                  json['file_url'] ??
+                  json['fileUrl'] ??
+                  json['achievement_file'] ??
+                  json['achievementFile'] ??
+                  json['image_url'] ??
+                  json['imageUrl'] ??
+                  '')
+              .toString(),
       fullName: json['full_name'] ?? '',
       visibility: json['visibility'] ?? '',
       createdAt: json['created_at'] ?? '',
@@ -55,13 +67,7 @@ class Achievement {
 }
 
 String getFullFileUrl(String url) {
-  if (url.isEmpty) {
-    return "";
-  }
-  if (url.startsWith("http")) {
-    return url;
-  }
-  return AppConfig.absoluteUrl(url);
+  return buildBackendFileUrl(url);
 }
 
 Widget buildAchievementFile(String url, {double height = 200}) {
@@ -73,7 +79,7 @@ Widget buildAchievementFile(String url, {double height = 200}) {
   }
 
   final fullUrl = getFullFileUrl(url);
-  if (fullUrl.toLowerCase().endsWith('.pdf')) {
+  if (isPdfFileUrl(fullUrl)) {
     return SizedBox(height: height, child: SfPdfViewer.network(fullUrl));
   }
 
@@ -84,11 +90,37 @@ Widget buildAchievementFile(String url, {double height = 200}) {
       width: double.infinity,
       height: height,
       fit: BoxFit.cover,
+      webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
       errorBuilder: (context, error, stackTrace) => SizedBox(
         height: height,
         child: const Center(child: Text("File not viewable")),
       ),
     ),
+  );
+}
+
+List<Achievement> parseAchievementList(String responseBody) {
+  final rows = extractJsonList(
+    json.decode(responseBody),
+    preferredKeys: const <String>[
+      'achievements',
+      'visibleAchievements',
+      'data',
+    ],
+  );
+
+  return rows
+      .map((row) => Achievement.fromJson(asStringKeyedMap(row)))
+      .toList();
+}
+
+Uri visibleAchievementsUri({required int studentId}) {
+  return AppConfig.apiUri(
+    '/achievements/visible',
+    queryParameters: <String, dynamic>{
+      'studentId': studentId,
+      '_ts': DateTime.now().millisecondsSinceEpoch,
+    },
   );
 }
 
@@ -221,10 +253,7 @@ class _StudentAchievementPageState extends State<StudentAchievementPage> {
       }
 
       final response = await http.get(
-        AppConfig.apiUri(
-          '/achievements/visible',
-          queryParameters: {'studentId': studentId},
-        ),
+        visibleAchievementsUri(studentId: studentId),
         headers: {
           'accept': 'application/json',
           'Authorization': 'Bearer $token',
@@ -232,8 +261,7 @@ class _StudentAchievementPageState extends State<StudentAchievementPage> {
       );
 
       if (response.statusCode == 200) {
-        final List jsonData = json.decode(response.body);
-        final newList = jsonData.map((e) => Achievement.fromJson(e)).toList();
+        final newList = parseAchievementList(response.body);
 
         newList.sort((a, b) {
           final dateA = DateTime.tryParse(a.createdAt) ?? DateTime(1900);
@@ -257,6 +285,8 @@ class _StudentAchievementPageState extends State<StudentAchievementPage> {
             _currentAchievements = newList;
           });
         }
+      } else if (response.statusCode == 304) {
+        return;
       }
     } catch (e) {
       debugPrint("Error checking for new achievements: $e");
@@ -272,19 +302,19 @@ class _StudentAchievementPageState extends State<StudentAchievementPage> {
     }
 
     final response = await http.get(
-      AppConfig.apiUri(
-        '/achievements/visible',
-        queryParameters: {'studentId': studentId},
-      ),
+      visibleAchievementsUri(studentId: studentId),
       headers: {'accept': 'application/json', 'Authorization': 'Bearer $token'},
     );
+
+    if (response.statusCode == 304) {
+      return _currentAchievements;
+    }
 
     if (response.statusCode != 200) {
       throw Exception('Failed to load achievements');
     }
 
-    final List jsonData = json.decode(response.body);
-    final achievements = jsonData.map((e) => Achievement.fromJson(e)).toList();
+    final achievements = parseAchievementList(response.body);
 
     achievements.sort((a, b) {
       final dateA = DateTime.tryParse(a.createdAt) ?? DateTime(1900);

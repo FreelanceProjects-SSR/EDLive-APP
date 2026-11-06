@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:school_app/config/config.dart';
+import 'package:school_app/utils/class_sorter.dart';
 import 'student_menu_drawer.dart';
 import 'package:school_app/widgets/student_app_bar.dart';
 import 'package:school_app/services/teacher_syllabus_subject_service.dart';
@@ -261,13 +262,21 @@ class _StudentToDoListPageState extends State<StudentToDoListPage> {
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         setState(() {
-          _classList = data.map((item) {
-            return {
-              'class_id': item['class_id'],
-              'class': item['class'],
-              'section': item['section'],
-            };
-          }).toList();
+          _classList =
+              data.map((item) {
+                return {
+                  'class_id': item['class_id'],
+                  'class': item['class'],
+                  'section': item['section'],
+                };
+              }).toList()..sort(
+                (a, b) => compareClassAndSection(
+                  classA: a['class']?.toString(),
+                  sectionA: a['section']?.toString(),
+                  classB: b['class']?.toString(),
+                  sectionB: b['section']?.toString(),
+                ),
+              );
 
           _classDisplayNames = {
             for (var c in _classList)

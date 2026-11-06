@@ -945,6 +945,7 @@ class _TeacherReportPageState extends State<TeacherReportPage> {
                             ),
                             child: DropdownButton<TeacherClass>(
                               value: selectedClass,
+                              menuMaxHeight: 280,
                               isExpanded: true, // 🔑 take full available width
                               underline: const SizedBox(),
                               icon: const Icon(

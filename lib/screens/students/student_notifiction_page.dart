@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:provider/provider.dart';
+import 'package:school_app/providers/student_notification_dashboard_provider.dart';
 import 'package:school_app/screens/students/student_menu_drawer.dart';
 import 'package:school_app/widgets/student_app_bar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -210,6 +212,20 @@ class _StudentNotificationPageState extends State<StudentNotificationPage> {
     _fetchNotifications();
   }
 
+  Future<void> _clearDashboardNotificationBadge() async {
+    final prefs = await SharedPreferences.getInstance();
+    final studentId = prefs.getInt('student_id');
+    if (studentId == null || !mounted) {
+      return;
+    }
+
+    await context.read<DashboardCountsProvider>().clearBadgeCountForStudent(
+      studentId: studentId,
+      itemType: 'notifications',
+      refreshCounts: true,
+    );
+  }
+
   Future<void> _markAsViewed(int itemId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -360,6 +376,10 @@ class _StudentNotificationPageState extends State<StudentNotificationPage> {
           "📅 Current week empty. Auto-fetching previous week ending ${_nextFetchDate}",
         );
         await _fetchNotifications(loadMore: true);
+      }
+
+      if (!loadMore) {
+        await _clearDashboardNotificationBadge();
       }
     } catch (e) {
       if (!mounted) {
