@@ -1,18 +1,19 @@
-import 'dart:async';
-import 'dart:convert';
-
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:school_app/widgets/authenticated_profile_image.dart';
 import 'package:flutter/material.dart';
 import 'package:school_app/config/config.dart';
+import 'package:school_app/services/parent_children_service.dart';
+import 'package:school_app/services/login_profile_service.dart';
+import '../login_page.dart';
 import 'package:school_app/widgets/student_app_bar.dart';
 import 'student_menu_drawer.dart';
 import 'student_dashboard.dart';
-import '../teachers/teacher_dashboard.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 
 class SelectChildPage extends StatefulWidget {
-  const SelectChildPage({super.key});
+  const SelectChildPage({super.key, this.client});
+
+  final http.Client? client;
 
   @override
   State<SelectChildPage> createState() => _SelectChildPageState();
@@ -21,21 +22,18 @@ class SelectChildPage extends StatefulWidget {
 class _SelectChildPageState extends State<SelectChildPage> {
   List<Map<String, dynamic>> children = [];
   bool isLoading = true;
+  bool _selectingProfile = false;
+  String? _loadError;
+  late final http.Client _client = widget.client ?? http.Client();
+
+  @override
+  void dispose() {
+    if (widget.client == null) _client.close();
+    super.dispose();
+  }
+
   static const double _profileImageSize = 160;
   static const int _profileImageCacheSize = 320;
-
-  int? _toInt(dynamic value) {
-    if (value is int) {
-      return value;
-    }
-    if (value is String) {
-      return int.tryParse(value);
-    }
-    if (value is List && value.isNotEmpty) {
-      return _toInt(value.first);
-    }
-    return null;
-  }
 
   Map<String, dynamic> _buildSelectedChild(Map<String, dynamic> child) {
     final selectedChild = Map<String, dynamic>.from(child);
@@ -54,59 +52,34 @@ class _SelectChildPageState extends State<SelectChildPage> {
     return selectedChild;
   }
 
-  int? _resolveTeacherId(Map<String, dynamic> child) {
-    return _toInt(child['staffid']) ??
-        _toInt(child['teacher_id']) ??
-        _toInt(child['staff_id']) ??
-        _toInt(child['id']) ??
-        _toInt(child['user_id']);
-  }
-
   Future<void> _openSelectedDashboard(Map<String, dynamic> child) async {
-    final prefs = await SharedPreferences.getInstance();
-    final selectedType = (child['user_type'] ?? '').toString().toLowerCase();
-    final isTeacher = selectedType == 'staff' || selectedType == 'teacher';
-
-    await prefs.setString('selected_child', jsonEncode(child));
-
-    if (isTeacher) {
-      await prefs.remove('student_id');
-      await prefs.remove('class_id');
-      final teacherId = _resolveTeacherId(child);
-      if (teacherId != null) {
-        await prefs.setInt('teacher_id', teacherId);
-      }
-
-      if (!mounted) {
+    if (_selectingProfile) return;
+    setState(() => _selectingProfile = true);
+    try {
+      await LoginProfileService(_client).select(child);
+      if (!mounted) return;
+      final selectedType = (child['user_type'] ?? '').toString().toLowerCase();
+      final isTeacher = selectedType == 'staff' || selectedType == 'teacher';
+      if (isTeacher) {
+        Navigator.pushReplacementNamed(context, '/dashboard');
         return;
       }
-
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const TeacherDashboardPage()),
+        MaterialPageRoute(
+          builder: (_) => StudentDashboardPage(childData: child),
+        ),
       );
-      return;
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _selectingProfile = false);
     }
-
-    final studentId = _toInt(child['id']);
-    final classId = _toInt(child['class_id']);
-
-    if (studentId != null) {
-      await prefs.setInt('student_id', studentId);
-    }
-    if (classId != null) {
-      await prefs.setInt('class_id', classId);
-    }
-    await prefs.remove('teacher_id');
-
-    if (!mounted) {
-      return;
-    }
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => StudentDashboardPage(childData: child)),
-    );
   }
 
   @override
@@ -134,93 +107,54 @@ class _SelectChildPageState extends State<SelectChildPage> {
     }
 
     return ClipOval(
-      child: CachedNetworkImage(
+      child: AuthenticatedProfileImage(
         imageUrl: imageUrl,
         width: _profileImageSize,
         height: _profileImageSize,
-        fit: BoxFit.cover,
-        fadeInDuration: Duration.zero,
-        placeholderFadeInDuration: Duration.zero,
-        memCacheWidth: _profileImageCacheSize,
-        memCacheHeight: _profileImageCacheSize,
-        maxWidthDiskCache: _profileImageCacheSize,
-        maxHeightDiskCache: _profileImageCacheSize,
-        placeholder: (_, __) => _buildProfilePlaceholder(),
-        errorWidget: (_, __, ___) => _buildProfilePlaceholder(),
+        cacheWidth: _profileImageCacheSize,
+        cacheHeight: _profileImageCacheSize,
+        placeholder: _buildProfilePlaceholder(),
       ),
     );
   }
 
-  Future<void> _warmUpChildImages(List<Map<String, dynamic>> childList) async {
-    final imageFutures = <Future<void>>[];
-
-    for (final child in childList) {
-      final imageUrl = child['image']?.toString() ?? '';
-      if (imageUrl.isEmpty) {
-        continue;
-      }
-
-      imageFutures.add(
-        precacheImage(
-          CachedNetworkImageProvider(
-            imageUrl,
-            maxWidth: _profileImageCacheSize,
-            maxHeight: _profileImageCacheSize,
-          ),
-          context,
-        ),
-      );
-    }
-
-    await Future.wait(imageFutures);
-  }
-
   Future<void> fetchChildren() async {
+    setState(() {
+      isLoading = true;
+      _loadError = null;
+    });
     try {
       final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
+      final data = await ParentChildrenService(
+        _client,
+      ).fetchProfiles(prefs.getString('auth_token'));
+      if (!mounted) return;
+      final tempChildren = data.map(_buildSelectedChild).toList();
 
-      final response = await http.get(
-        Uri.parse('${AppConfig.baseUrl}/student/parents/children'),
-        headers: {
-          'accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+      // Staff first, then Student
+      tempChildren.sort((a, b) {
+        final aType = (a['user_type'] ?? '').toString().toLowerCase();
+        final bType = (b['user_type'] ?? '').toString().toLowerCase();
 
-      if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
+        final aIsTeacher = aType == 'staff' || aType == 'teacher';
+        final bIsTeacher = bType == 'staff' || bType == 'teacher';
+        if (aIsTeacher && !bIsTeacher) return -1;
+        if (!aIsTeacher && bIsTeacher) return 1;
+        return 0;
+      });
 
-        List<Map<String, dynamic>> tempChildren = data
-            .map<Map<String, dynamic>>((child) {
-              return _buildSelectedChild(
-                Map<String, dynamic>.from(child as Map),
-              );
-            })
-            .toList();
-
-        // Staff first, then Student
-        tempChildren.sort((a, b) {
-          final aType = (a['user_type'] ?? '').toString().toLowerCase();
-          final bType = (b['user_type'] ?? '').toString().toLowerCase();
-
-          if (aType == 'staff' && bType != 'staff') return -1;
-          if (aType != 'staff' && bType == 'staff') return 1;
-          return 0;
-        });
-
-        setState(() {
-          children = tempChildren;
-          isLoading = false;
-        });
-        unawaited(_warmUpChildImages(tempChildren));
-      } else {
-        setState(() => isLoading = false);
-        debugPrint('Failed to fetch children: ${response.body}');
-      }
-    } catch (e) {
-      setState(() => isLoading = false);
-      debugPrint('Error fetching children: $e');
+      setState(() {
+        children = tempChildren;
+        isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        isLoading = false;
+        _loadError = error is ParentChildrenException
+            ? error.message
+            : 'Unable to load children. Please try again.';
+      });
     }
   }
 
@@ -232,8 +166,52 @@ class _SelectChildPageState extends State<SelectChildPage> {
       drawer: const StudentMenuDrawer(),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
+          : _loadError != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(_loadError!, textAlign: TextAlign.center),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: fetchChildren,
+                      child: const Text('Retry'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(builder: (_) => const LoginPage()),
+                        (_) => false,
+                      ),
+                      child: const Text('Back to login'),
+                    ),
+                  ],
+                ),
+              ),
+            )
           : children.isEmpty
-          ? const Center(child: Text("No children found"))
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'No teacher or student profiles are linked to this account. '
+                      'Please contact the school administrator.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: fetchChildren,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            )
           : SingleChildScrollView(
               padding: const EdgeInsets.symmetric(vertical: 24),
               child: Column(

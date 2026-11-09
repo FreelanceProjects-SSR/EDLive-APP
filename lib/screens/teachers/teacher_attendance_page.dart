@@ -484,6 +484,7 @@ class _TeacherAttendanceDayTabState extends State<TeacherAttendanceDayTab> {
                   decoration: const BoxDecoration(color: Color(0xFFCCCCCC)),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
+                      isExpanded: true,
                       value: selectedClass,
                       icon: const Icon(
                         Icons.arrow_drop_down,
@@ -512,7 +513,11 @@ class _TeacherAttendanceDayTabState extends State<TeacherAttendanceDayTab> {
                       items: classSections.map((section) {
                         return DropdownMenuItem<String>(
                           value: section.fullName,
-                          child: Text(section.fullName),
+                          child: Text(
+                            section.fullName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         );
                       }).toList(),
                     ),
@@ -856,7 +861,11 @@ class _TeacherAttendanceMonthTabState extends State<TeacherAttendanceMonthTab> {
                 style: const TextStyle(color: Colors.red),
               ),
               const SizedBox(height: 8),
-              Row(
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 12,
+                runSpacing: 8,
                 children: [
                   Container(
                     height: 38,
@@ -865,6 +874,7 @@ class _TeacherAttendanceMonthTabState extends State<TeacherAttendanceMonthTab> {
                     decoration: const BoxDecoration(color: Color(0xFFCCCCCC)),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
+                        isExpanded: true,
                         value: selectedClass,
                         icon: const Icon(
                           Icons.arrow_drop_down,
@@ -889,14 +899,18 @@ class _TeacherAttendanceMonthTabState extends State<TeacherAttendanceMonthTab> {
                         items: classSections.map((section) {
                           return DropdownMenuItem<String>(
                             value: section.fullName,
-                            child: Text(section.fullName),
+                            child: Text(
+                              section.fullName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           );
                         }).toList(),
                       ),
                     ),
                   ),
-                  const Spacer(),
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Transform.scale(
                         scale: 0.8,
@@ -1137,7 +1151,11 @@ class _TeacherAttendanceYearTabState extends State<TeacherAttendanceYearTab> {
                 style: const TextStyle(color: Colors.red),
               ),
               const SizedBox(height: 8),
-              Row(
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 12,
+                runSpacing: 8,
                 children: [
                   Container(
                     height: 38,
@@ -1146,6 +1164,7 @@ class _TeacherAttendanceYearTabState extends State<TeacherAttendanceYearTab> {
                     decoration: const BoxDecoration(color: Color(0xFFCCCCCC)),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
+                        isExpanded: true,
                         value: selectedClass,
                         icon: const Icon(
                           Icons.arrow_drop_down,
@@ -1171,14 +1190,18 @@ class _TeacherAttendanceYearTabState extends State<TeacherAttendanceYearTab> {
                         items: classSections.map((section) {
                           return DropdownMenuItem<String>(
                             value: section.fullName,
-                            child: Text(section.fullName),
+                            child: Text(
+                              section.fullName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           );
                         }).toList(),
                       ),
                     ),
                   ),
-                  const Spacer(),
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Transform.scale(
                         scale: 0.8,

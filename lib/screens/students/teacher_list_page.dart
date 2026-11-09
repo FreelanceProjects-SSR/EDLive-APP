@@ -23,6 +23,28 @@ class _StudentTeacherPageState extends State<StudentTeacherPage> {
     _teachersFuture = TeacherService().fetchTeachers(widget.studentId);
   }
 
+  void _retry() {
+    setState(() {
+      _teachersFuture = TeacherService().fetchTeachers(widget.studentId);
+    });
+  }
+
+  Widget _buildMessage(String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            ElevatedButton(onPressed: _retry, child: const Text('Retry')),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -93,17 +115,24 @@ class _StudentTeacherPageState extends State<StudentTeacherPage> {
                     child: FutureBuilder<List<Teacher>>(
                       future: _teachersFuture,
                       builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
-                        } else if (snapshot.hasError) {
-                          return Center(
-                            child: Text(
-                              'Error: ${snapshot.error}',
-                              style: const TextStyle(color: Colors.red),
-                            ),
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
                           );
-                        } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                          return const Center(child: Text('No teachers found'));
+                        } else if (snapshot.hasError) {
+                          return _buildMessage(
+                            snapshot.error is TeacherListException
+                                ? (snapshot.error as TeacherListException)
+                                      .message
+                                : 'Unable to load teachers. Please try again.',
+                          );
+                        } else if (!snapshot.hasData ||
+                            snapshot.data!.isEmpty) {
+                          return _buildMessage(
+                            'No teachers are available for this student yet. '
+                            'Please contact the school to check the class timetable and teacher assignments.',
+                          );
                         }
 
                         final teachers = snapshot.data!;

@@ -7,11 +7,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:school_app/config/config.dart';
 import 'package:school_app/services/user_account_service.dart';
+import 'package:school_app/services/parent_children_service.dart';
+import 'package:school_app/services/login_profile_service.dart';
 
 import 'students/student_dashboard.dart';
+import 'required_password_change_page.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  const LoginPage({super.key, this.client});
+
+  final http.Client? client;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -20,32 +25,20 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final UserAccountService _userAccountService = UserAccountService();
+  late final http.Client _client = widget.client ?? http.Client();
+  late final UserAccountService _userAccountService = UserAccountService(
+    client: _client,
+  );
 
   bool _isLoading = false;
   bool _obscurePassword = true;
 
   @override
   void dispose() {
+    if (widget.client == null) _client.close();
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
-  }
-
-  int? _extractPositiveInt(dynamic value) {
-    if (value is int && value > 0) {
-      return value;
-    }
-    if (value is String) {
-      final parsed = int.tryParse(value);
-      if (parsed != null && parsed > 0) {
-        return parsed;
-      }
-    }
-    if (value is List && value.isNotEmpty) {
-      return _extractPositiveInt(value.first);
-    }
-    return null;
   }
 
   Map<String, dynamic> _buildSelectedChild(Map<String, dynamic> child) {
@@ -79,7 +72,7 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      final response = await http
+      final response = await _client
           .post(
             AppConfig.apiUri('/auth/login'),
             headers: {'Content-Type': 'application/json'},
@@ -102,52 +95,51 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
+      if (!['teacher', 'student', 'parent'].contains(userType)) {
+        _showError('This account type cannot use the school app.');
+        return;
+      }
+
       final prefs = await SharedPreferences.getInstance();
+      for (final key in [
+        'selected_child',
+        'teacher_id',
+        'student_id',
+        'class_id',
+      ]) {
+        await prefs.remove(key);
+      }
       await prefs.setString('auth_token', token);
       await prefs.setString('user_type', userType);
       await prefs.setString('user_data', jsonEncode(user));
+      final academicYear = data['academicYear']?.toString().trim() ?? '';
+      if (academicYear.isNotEmpty) {
+        AppConfig.setAcademicYear(academicYear);
+        await prefs.setString(AppConfig.academicYearKey, academicYear);
+      }
 
-      if (userType == 'student' && user['student_id'] != null) {
-        await prefs.setInt(
-          'student_id',
-          int.parse(user['student_id'].toString()),
+      if (user['mustChangePassword'] == true) {
+        if (!mounted) return;
+        final changed = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            builder: (_) =>
+                RequiredPasswordChangePage(service: _userAccountService),
+          ),
         );
+        if (changed != true) {
+          for (final key in ['auth_token', 'user_type', 'user_data']) {
+            await prefs.remove(key);
+          }
+          return;
+        }
+        user['mustChangePassword'] = false;
+        await prefs.setString('user_data', jsonEncode(user));
       }
 
       if (!mounted) {
         return;
       }
-
-      if (userType == 'teacher') {
-        final teacherId =
-            _extractPositiveInt(user['staffid']) ??
-            _extractPositiveInt(user['teacher_id']) ??
-            _extractPositiveInt(user['staff_id']) ??
-            _extractPositiveInt(user['id']);
-        if (teacherId != null) {
-          await prefs.setInt('teacher_id', teacherId);
-        }
-        await prefs.remove('selected_child');
-        await prefs.remove('student_id');
-        await prefs.remove('class_id');
-        if (!mounted) {
-          return;
-        }
-        Navigator.pushReplacementNamed(context, '/dashboard');
-        return;
-      }
-
-      if (userType == 'student' || userType == 'parent') {
-        await prefs.remove('teacher_id');
-        await _handleStudentOrParentLogin(
-          prefs: prefs,
-          token: token,
-          user: user,
-        );
-        return;
-      }
-
-      _showError('Unsupported user type.');
+      await _handleProfileLogin(token: token, user: user);
     } on TimeoutException catch (e) {
       _showError(_extractExceptionMessage(e));
     } on http.ClientException catch (e) {
@@ -163,35 +155,25 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<void> _handleStudentOrParentLogin({
-    required SharedPreferences prefs,
+  Future<void> _handleProfileLogin({
     required String token,
     required Map<String, dynamic> user,
   }) async {
     try {
-      final childrenResponse = await http
-          .get(
-            AppConfig.apiUri('/student/parents/children'),
-            headers: {
-              'accept': 'application/json',
-              'Authorization': 'Bearer $token',
-            },
-          )
-          .timeout(const Duration(seconds: 20));
-
-      if (childrenResponse.statusCode != 200) {
-        if (!mounted) {
-          return;
+      final childrenData = await ParentChildrenService(
+        _client,
+      ).fetchProfiles(token);
+      if (childrenData.isEmpty &&
+          user['usertype']?.toString().toLowerCase() == 'teacher') {
+        final prefs = await SharedPreferences.getInstance();
+        for (final key in ['auth_token', 'user_type', 'user_data']) {
+          await prefs.remove(key);
         }
-        Navigator.pushReplacementNamed(
-          context,
-          '/select-child',
-          arguments: user,
+        _showError(
+          'Your teacher profile is not linked. Please contact the school administrator.',
         );
         return;
       }
-
-      final childrenData = json.decode(childrenResponse.body) as List<dynamic>;
       if (childrenData.length != 1) {
         if (!mounted) {
           return;
@@ -204,28 +186,16 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      final child = childrenData.first as Map<String, dynamic>;
+      final child = childrenData.first;
       final selectedChild = _buildSelectedChild(child);
 
-      await prefs.setString('selected_child', jsonEncode(selectedChild));
+      await LoginProfileService(_client).select(selectedChild);
 
       final selectedType = child['user_type']?.toString().toLowerCase() ?? '';
       final opensTeacherDashboard =
           selectedType == 'staff' || selectedType == 'teacher';
 
       if (opensTeacherDashboard) {
-        final teacherId =
-            _extractPositiveInt(child['staffid']) ??
-            _extractPositiveInt(child['teacher_id']) ??
-            _extractPositiveInt(child['staff_id']) ??
-            _extractPositiveInt(child['id']) ??
-            _extractPositiveInt(child['user_id']);
-        if (teacherId != null) {
-          await prefs.setInt('teacher_id', teacherId);
-        }
-        await prefs.remove('student_id');
-        await prefs.remove('class_id');
-
         if (!mounted) {
           return;
         }
@@ -233,9 +203,6 @@ class _LoginPageState extends State<LoginPage> {
         Navigator.pushReplacementNamed(context, '/dashboard');
         return;
       }
-
-      await prefs.setInt('student_id', int.parse(child['id'].toString()));
-      await prefs.setInt('class_id', int.parse(child['class_id'].toString()));
 
       if (!mounted) {
         return;
@@ -247,15 +214,14 @@ class _LoginPageState extends State<LoginPage> {
           builder: (_) => StudentDashboardPage(childData: selectedChild),
         ),
       );
+    } on ParentChildrenException catch (e) {
+      _showError(e.message);
     } on TimeoutException catch (e) {
       _showError(AppConfig.networkErrorMessage(e));
     } on http.ClientException catch (e) {
       _showError(AppConfig.networkErrorMessage(e));
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-      Navigator.pushReplacementNamed(context, '/select-child', arguments: user);
+    } catch (error) {
+      _showError(_extractExceptionMessage(error));
     }
   }
 

@@ -307,11 +307,12 @@ class _AuthGatePageState extends State<AuthGatePage> {
             launchData.token != null && launchData.token!.trim().isNotEmpty;
 
         if (hasToken) {
-          if (launchData.userType == 'teacher' || opensTeacherDashboard) {
+          if (opensTeacherDashboard) {
             return const TeacherDashboardPage();
           }
 
-          if (launchData.userType == 'student' ||
+          if (launchData.userType == 'teacher' ||
+              launchData.userType == 'student' ||
               launchData.userType == 'parent') {
             if (launchData.selectedChild != null) {
               return StudentDashboardPage(childData: launchData.selectedChild!);

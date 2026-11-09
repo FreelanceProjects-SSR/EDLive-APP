@@ -3,7 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:school_app/services/user_account_service.dart';
 
 class ResetPasswordSection extends StatefulWidget {
-  const ResetPasswordSection({super.key});
+  const ResetPasswordSection({
+    super.key,
+    this.initiallyExpanded = false,
+    this.onPasswordChanged,
+    this.service,
+  });
+
+  final UserAccountService? service;
+  final bool initiallyExpanded;
+  final VoidCallback? onPasswordChanged;
 
   @override
   State<ResetPasswordSection> createState() => _ResetPasswordSectionState();
@@ -12,7 +21,7 @@ class ResetPasswordSection extends StatefulWidget {
 class _ResetPasswordSectionState extends State<ResetPasswordSection> {
   final _forgotFormKey = GlobalKey<FormState>();
   final _changeFormKey = GlobalKey<FormState>();
-  final _service = UserAccountService();
+  late final _service = widget.service ?? const UserAccountService();
   final _emailController = TextEditingController();
   final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
@@ -37,6 +46,15 @@ class _ResetPasswordSectionState extends State<ResetPasswordSection> {
 
   bool get _hasRegisteredEmail =>
       (_contextData?.email.trim().isNotEmpty ?? false);
+
+  @override
+  void initState() {
+    super.initState();
+    _isExpanded = widget.initiallyExpanded;
+    if (_isExpanded) {
+      _ensureContextLoaded();
+    }
+  }
 
   @override
   void dispose() {
@@ -222,6 +240,7 @@ class _ResetPasswordSectionState extends State<ResetPasswordSection> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
+      widget.onPasswordChanged?.call();
     } catch (error) {
       if (!mounted) {
         return;

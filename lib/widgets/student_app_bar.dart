@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'authenticated_profile_image.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -121,11 +122,9 @@ class _StudentAppBarState extends State<StudentAppBar> {
           if (hasImage)
             Positioned.fill(
               child: ClipOval(
-                child: Image.network(
-                  normalizedUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, error, stackTrace) =>
-                      const SizedBox.shrink(),
+                child: AuthenticatedProfileImage(
+                  imageUrl: normalizedUrl,
+                  placeholder: const SizedBox.shrink(),
                 ),
               ),
             ),

@@ -1,53 +1,52 @@
-# Web CORS Proxy
+# School app API connection
 
-The browser error means the backend at `https://schoolmanagement.canadacentral.cloudapp.azure.com` is not allowing cross-origin requests from your Flutter web dev origin such as `http://localhost:63632`.
+The main URL is stored once in `AppConfig.mainUrl` in `lib/config/config.dart`:
 
-Flutter code cannot disable browser CORS checks. For local web development, run the included proxy and point the app at it.
+    https://edlive-admin-web-frontend-nine.vercel.app
 
-## 1. Start the proxy
+Pages use `AppConfig.serverOrigin`, `AppConfig.baseUrl`, or `AppConfig.apiUri()`.
+VS Code debug/profile/release launches use this shared config without URL overrides.
+Change `AppConfig.mainUrl` to update the default URL across the app.
 
-```powershell
-C:\flutter\src\flutter\bin\cache\dart-sdk\bin\dart.exe run tool\dev_api_proxy.dart
-```
+AppConfig adds /api for API requests. SERVER_ORIGIN and API_BASE_URL dart-define
+arguments override config.dart, so remove any old EC2/Azure overrides from custom
+terminal commands. Restart/rebuild the app after changing compile-time settings.
 
-If `dart run` is blocked by local telemetry permissions, use:
+## Flutter Web
 
-```powershell
-C:\flutter\src\flutter\bin\cache\dart-sdk\bin\dart.exe --disable-dart-dev tool\dev_api_proxy.dart
-```
+The VS Code launch configurations use 127.0.0.1:8081. For a terminal run:
 
-Optional overrides:
+    flutter run -d chrome --web-hostname 127.0.0.1 --web-port 8081
 
-```powershell
-C:\flutter\src\flutter\bin\cache\dart-sdk\bin\dart.exe run ^
-  --define=PROXY_HOST=127.0.0.1 ^
-  --define=PROXY_PORT=8081 ^
-  --define=BACKEND_ORIGIN=https://schoolmanagement.canadacentral.cloudapp.azure.com ^
-  tool\dev_api_proxy.dart
-```
+In the backend Vercel project, add these exact origins to CORS_ORIGINS in the
+Production environment, preserving any other approved entries:
 
-## 2. Run Flutter web
+    http://127.0.0.1:8081,http://localhost:8081
 
-When the app is opened from `localhost`, it now defaults to `http://127.0.0.1:8081` automatically for local web development.
+Redeploy after changing environment variables. The backend repository's private
+.env.production and .env.vercel files contain these prepared settings; local file
+edits do not update the running Vercel deployment. If Flutter Web is hosted at
+another domain, add that actual origin to the same setting.
 
-So once the proxy is running, this is usually enough:
+The production API health endpoint responds at /api/health. A successful health
+check verifies database connectivity but does not verify CORS or account login.
+Use browser network tools to confirm the OPTIONS preflight is accepted as well.
+The existing tool/dev_api_proxy.dart is optional legacy tooling and is not the
+app's default backend. Do not use its old upstream URL for this deployment.
 
-```powershell
-flutter run -d chrome
-```
+## Shared student and teacher accounts
 
-You can still force the values explicitly if you want:
+Admin web and the school app authenticate against the backend's same users table.
+Do not place PostgreSQL credentials, the JWT secret, or Supabase secret keys in
+Flutter. Keep those settings in Vercel's backend environment variables.
 
-```powershell
-flutter run -d chrome `
-  --dart-define=SERVER_ORIGIN=http://127.0.0.1:8081 `
-  --dart-define=API_BASE_URL=http://127.0.0.1:8081/api
-```
+Temporary-password accounts must set a new password before opening dashboards.
+The app now displays that screen during login. Password changes apply to the
+same account in both clients. Teachers need staff.user_id linked to users.id;
+students need students.user_id linked to users.id. Ask the administrator to
+resolve missing links rather than using an account ID as a staff profile ID.
 
-## 3. Production fix
-
-The permanent fix is still on the backend:
-
-- Return `Access-Control-Allow-Origin` for the web app origin.
-- Return `Access-Control-Allow-Methods` and `Access-Control-Allow-Headers` for the preflight `OPTIONS` request.
-- Apply that CORS policy to login and every authenticated API route.
+Native Android/iOS requests without an Origin header already pass API CORS.
+Private images/documents still need authenticated downloads. Large file uploads
+must use signed direct Storage uploads to avoid Vercel's request body limit;
+those feature flows require separate device/browser checks before rollout.

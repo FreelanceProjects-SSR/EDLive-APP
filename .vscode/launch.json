@@ -5,60 +5,52 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Dart: Run all Tests",
-            "type": "dart",
-            "request": "launch",
-            "program": "./test/"
-        },
-        {
             "name": "school_app",
             "request": "launch",
             "type": "dart",
+            "program": "lib/main.dart",
+            "templateFor": "lib/",
             "deviceId": "chrome",
-            "args": [
+            "toolArgs": [
                 "--web-hostname",
                 "127.0.0.1",
                 "--web-port",
-                "8081",
-                "--dart-define",
-                "SERVER_ORIGIN=http://ec2-51-20-9-243.eu-north-1.compute.amazonaws.com",
-                "--dart-define",
-                "API_BASE_URL=http://ec2-51-20-9-243.eu-north-1.compute.amazonaws.com/api"
+                "8081"
             ]
         },
         {
             "name": "school_app (profile mode)",
             "request": "launch",
             "type": "dart",
+            "program": "lib/main.dart",
             "flutterMode": "profile",
             "deviceId": "chrome",
-            "args": [
+            "toolArgs": [
                 "--web-hostname",
                 "127.0.0.1",
                 "--web-port",
-                "8081",
-                "--dart-define",
-                "SERVER_ORIGIN=http://ec2-51-20-9-243.eu-north-1.compute.amazonaws.com",
-                "--dart-define",
-                "API_BASE_URL=http://ec2-51-20-9-243.eu-north-1.compute.amazonaws.com/api"
+                "8081"
             ]
         },
         {
             "name": "school_app (release mode)",
             "request": "launch",
             "type": "dart",
+            "program": "lib/main.dart",
             "flutterMode": "release",
             "deviceId": "chrome",
-            "args": [
+            "toolArgs": [
                 "--web-hostname",
                 "127.0.0.1",
                 "--web-port",
-                "8081",
-                "--dart-define",
-                "SERVER_ORIGIN=http://ec2-51-20-9-243.eu-north-1.compute.amazonaws.com",
-                "--dart-define",
-                "API_BASE_URL=http://ec2-51-20-9-243.eu-north-1.compute.amazonaws.com/api"
+                "8081"
             ]
+        },
+        {
+            "name": "Dart: Run all Tests",
+            "type": "dart",
+            "request": "launch",
+            "program": "./test/"
         }
     ]
 }

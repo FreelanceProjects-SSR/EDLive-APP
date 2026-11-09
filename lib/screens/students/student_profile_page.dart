@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:school_app/widgets/authenticated_profile_image.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -180,14 +180,11 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
         : fullUrl;
 
     return ClipOval(
-      child: CachedNetworkImage(
+      child: AuthenticatedProfileImage(
         imageUrl: imageUrlWithCacheToken,
         width: size,
         height: size,
-        fit: BoxFit.cover,
-        placeholder: (_, progress) =>
-            const Center(child: CircularProgressIndicator()),
-        errorWidget: (_, url, error) => _placeholderImage(size),
+        placeholder: _placeholderImage(size),
       ),
     );
   }

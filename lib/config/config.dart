@@ -1,18 +1,21 @@
 import 'package:flutter/foundation.dart';
 
 class AppConfig {
-  static const String ec2ServerOrigin =
-      'https://edlive-admin-web-frontend-nine.vercel.app';
+  // Change the main URL here; all pages use serverOrigin or baseUrl below.
+  // static const String mainUrl =
+  //     'https://edlive-admin-web-frontend-nine.vercel.app';
+
+  static const String mainUrl = 'http://localhost:5173';
 
   // ✅ Production backend
   // static const String defaultServerOrigin =
   //     'https://schoolmanagement.canadacentral.cloudapp.azure.com';
 
-  static const String defaultServerOrigin = ec2ServerOrigin;
+  static const String defaultServerOrigin = mainUrl;
 
   // ✅ Local backend
-  static const String localServerOrigin = ec2ServerOrigin;
-  static const String androidEmulatorServerOrigin = ec2ServerOrigin;
+  static const String localServerOrigin = mainUrl;
+  static const String androidEmulatorServerOrigin = mainUrl;
 
   // ✅ Optional local web proxy (only if you really use one)
   static const String localProxyOrigin = 'http://127.0.0.1:8081';

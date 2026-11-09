@@ -35,6 +35,9 @@ class UserAccountException implements Exception {
 }
 
 class UserAccountService {
+  const UserAccountService({this.client});
+
+  final http.Client? client;
   Future<UserAccountResetContext> loadResetContext() async {
     final prefs = await SharedPreferences.getInstance();
     final userData = _readJsonMap(prefs.getString('user_data'));
@@ -82,10 +85,7 @@ class UserAccountService {
       case 400:
         throw UserAccountException(
           title: 'Invalid email',
-          message: _extractHttpError(
-            response,
-            'Valid email is required.',
-          ),
+          message: _extractHttpError(response, 'Valid email is required.'),
           fieldErrors: const {'email': 'Enter a valid email address.'},
         );
       case 404:
@@ -146,7 +146,8 @@ class UserAccountService {
         title: 'Invalid password input',
         message: 'New password must be different from the current password.',
         fieldErrors: {
-          'newPassword': 'New password must be different from current password.',
+          'newPassword':
+              'New password must be different from current password.',
         },
       );
     }
@@ -185,10 +186,7 @@ class UserAccountService {
       case 400:
         throw UserAccountException(
           title: 'Invalid password input',
-          message: _extractHttpError(
-            response,
-            'Invalid password input.',
-          ),
+          message: _extractHttpError(response, 'Invalid password input.'),
         );
       case 401:
         throw UserAccountException(
@@ -201,10 +199,7 @@ class UserAccountService {
       case 404:
         throw UserAccountException(
           title: 'User not found',
-          message: _extractHttpError(
-            response,
-            'User not found.',
-          ),
+          message: _extractHttpError(response, 'User not found.'),
         );
       default:
         throw UserAccountException(
@@ -223,9 +218,10 @@ class UserAccountService {
     required Map<String, dynamic> body,
   }) async {
     try {
-      return await http
-          .post(endpoint, headers: headers, body: jsonEncode(body))
-          .timeout(const Duration(seconds: 20));
+      final request = client == null
+          ? http.post(endpoint, headers: headers, body: jsonEncode(body))
+          : client!.post(endpoint, headers: headers, body: jsonEncode(body));
+      return await request.timeout(const Duration(seconds: 20));
     } on TimeoutException {
       throw const UserAccountException(
         title: 'Connection error',

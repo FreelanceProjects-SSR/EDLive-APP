@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:school_app/widgets/authenticated_profile_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
@@ -303,17 +304,26 @@ class _TeacherProfilePageState extends State<TeacherProfilePage>
                   backgroundColor: Colors.grey[300],
                   backgroundImage: _selectedImage != null
                       ? FileImage(_selectedImage!)
+                      : null,
+                  child: _selectedImage != null
+                      ? null
                       : (teacherData?['profile_image'] != null &&
                             teacherData!['profile_image'].toString().isNotEmpty)
-                      ? NetworkImage(
-                          "${AppConfig.serverOrigin}${teacherData!['profile_image']}?v=${DateTime.now().millisecondsSinceEpoch}",
+                      ? ClipOval(
+                          child: AuthenticatedProfileImage(
+                            imageUrl: AppConfig.absoluteUrl(
+                              teacherData!['profile_image'].toString(),
+                            ),
+                            width: 120,
+                            height: 120,
+                            placeholder: const Icon(
+                              Icons.person,
+                              size: 70,
+                              color: Colors.white,
+                            ),
+                          ),
                         )
-                      : null,
-                  child:
-                      (teacherData?['profile_image'] == null ||
-                          teacherData!['profile_image'].toString().isEmpty)
-                      ? const Icon(Icons.person, size: 70, color: Colors.white)
-                      : null,
+                      : const Icon(Icons.person, size: 70, color: Colors.white),
                 ),
                 Positioned(
                   bottom: 0,

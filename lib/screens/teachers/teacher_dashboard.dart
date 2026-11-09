@@ -1,8 +1,6 @@
 import 'dart:async';
 // lib/screens/teacher_dashboard.dart
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -112,48 +110,13 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage>
   }
 
   Future<void> _handleBack() async {
-    final prefs = await SharedPreferences.getInstance();
-    final loggedInUserType = prefs.getString('user_type')?.toLowerCase();
-    final selectedChildString = prefs.getString('selected_child');
-
-    Map<String, dynamic>? selectedChild;
-    if (selectedChildString != null && selectedChildString.isNotEmpty) {
-      try {
-        selectedChild = jsonDecode(selectedChildString) as Map<String, dynamic>;
-      } catch (_) {
-        selectedChild = null;
-      }
-    }
-
-    final selectedType =
-        selectedChild?['user_type']?.toString().toLowerCase() ?? '';
-    final openedFromChildSelection =
-        loggedInUserType != 'teacher' &&
-        (selectedType == 'staff' || selectedType == 'teacher');
-
-    if (openedFromChildSelection) {
-      if (!mounted) {
-        return;
-      }
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const SelectChildPage()),
-      );
-      return;
-    }
-
     if (!mounted) {
       return;
     }
-
-    final navigator = Navigator.of(context);
-    if (navigator.canPop()) {
-      navigator.pop();
-      return;
-    }
-
-    SystemNavigator.pop();
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const SelectChildPage()),
+    );
   }
 
   Future<T?> _pushAndClearCount<T>({
@@ -191,431 +154,451 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage>
         backgroundColor: const Color(0xFFF4F4F4),
         drawer: const MenuDrawer(),
         appBar: const TeacherAppBar(),
-        body: _isInitialLoadPending
-            ? const Center(child: CircularProgressIndicator())
-            : Consumer<SettingsProvider>(
-                builder: (context, settings, _) {
-                  return ListView(
-                    padding: const EdgeInsets.all(12),
-                    children: [
-                      GestureDetector(
-                        onTap: _handleBack,
-                        child: const Row(
-                          // children: [
-                          //   Icon(
-                          //     Icons.arrow_back_ios_new_rounded,
-                          //     size: 14,
-                          //     color: Colors.black,
-                          //   ),
-                          //   SizedBox(width: 2),
-                          //   Text(
-                          //     'Back',
-                          //     style: TextStyle(
-                          //       fontSize: 13,
-                          //       color: Colors.black,
-                          //       fontWeight: FontWeight.w500,
-                          //     ),
-                          //   ),
-                          // ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      /// First group: Notifications, Achievements, To-do, Reports
-                      Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: [
-                          _buildBadgeTile(
-                            selector: (provider) =>
-                                provider.counts?.notifications,
-                            builder: (badgeCount) => DashboardTile(
-                              title: 'Notifications',
-                              subtitle: 'PTA meeting on 12, Feb. 2019',
-                              iconPath: 'assets/icons/notification.svg',
-                              color: const Color(0xFFF9F7A5),
-                              badgeCount: badgeCount,
-                              onTap: () async {
-                                await _pushAndClearCount(
-                                  itemType: 'notifications',
-                                  route: MaterialPageRoute(
-                                    builder: (_) =>
-                                        const TeacherNotificationPage(),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-
-                          if (settings.isVisible('achievements'))
-                            _buildBadgeTile(
-                              selector: (provider) =>
-                                  provider.counts?.achievements,
-                              builder: (badgeCount) => DashboardTile(
-                                title: 'Achievements',
-                                subtitle: 'Congratulate your teacher',
-                                iconPath: 'assets/icons/achievements.svg',
-                                color: const Color(0xFFFCEE21),
-                                badgeCount: badgeCount,
-                                onClose: () => settings.updateVisibility(
-                                  'achievements',
-                                  false,
-                                ),
-                                onTap: () async {
-                                  await _pushAndClearCount(
-                                    itemType: 'achievements',
-                                    route: MaterialPageRoute(
-                                      builder: (_) =>
-                                          const TeacherAchievementPage(),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          if (settings.isVisible('todo'))
-                            _buildBadgeTile(
-                              selector: (provider) => provider.counts?.todo,
-                              builder: (badgeCount) => DashboardTile(
-                                title: 'Home Work',
-                                subtitle: 'Make your own list, set reminder.',
-                                iconPath: 'assets/icons/todo.svg',
-                                color: const Color(0xFF8FD8E5),
-                                badgeCount: badgeCount,
-                                onClose: () =>
-                                    settings.updateVisibility('todo', false),
-                                onTap: () async {
-                                  await _pushAndClearCount(
-                                    itemType: 'todo',
-                                    route: MaterialPageRoute(
-                                      builder: (_) => const ToDoListPage(),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          DashboardTile(
-                            title: 'Reports',
-                            subtitle: 'Progress report updated',
-                            iconPath: 'assets/icons/reports.svg',
-                            color: const Color(0xFFFFCCCC),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const TeacherReportPage(),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-
-                      /// Second group: Attendance, Class & Time
-                      Row(
-                        children: [
-                          Expanded(
-                            child: DashboardTile(
-                              title: 'Attendance',
-                              iconPath: 'assets/icons/attendance.svg',
-                              color: const Color(0xFFFFCCCC),
-                              centerContent: true,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        const TeacherAttendancePage(),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: DashboardTile(
-                              title: 'Class & Time',
-                              iconPath: 'assets/icons/class_time.svg',
-                              color: const Color(0xFFFCDBB1),
-                              centerContent: true,
-                              onTap: () =>
-                                  Navigator.pushNamed(context, '/classtime'),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-
-                      /// Third group: Payments, Exams
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildBadgeTile(
-                              selector: (provider) => provider.counts?.payments,
-                              builder: (badgeCount) => DashboardTile(
-                                title: 'Payments',
-                                iconPath: 'assets/icons/payments.svg',
-                                color: const Color(0xFFC0DD94),
-                                badgeCount: badgeCount,
-                                centerContent: true,
-                                onTap: () async {
-                                  await _pushAndClearCount(
-                                    itemType: 'payments',
-                                    route: MaterialPageRoute(
-                                      builder: (_) =>
-                                          const TeacherPaymentsPage(),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: DashboardTile(
-                              title: 'Exams',
-                              iconPath: 'assets/icons/exams.svg',
-                              color: const Color(0xFFAAE5C8),
-                              // badgeCount: 2, // placeholder
-                              centerContent: true,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const TeacherExamPage(),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-
-                      /// Fourth group: Transport, Message
-                      Row(
-                        children: [
-                          Expanded(
-                            child: DashboardTile(
-                              title: 'Transport',
-                              iconPath: 'assets/icons/transport.svg',
-                              color: const Color(0xFFCCCCFF),
-                              centerContent: true,
-                              onTap: () async {
-                                final prefs =
-                                    await SharedPreferences.getInstance();
-                                final staffId =
-                                    TeacherIdResolver.resolveFromPrefs(prefs);
-
-                                if (!context.mounted) return;
-
-                                if (staffId == null) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Teacher ID not found. Please login again.',
-                                      ),
-                                    ),
-                                  );
-                                  return;
-                                }
-
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => TransportPage(
-                                      staffId: staffId,
-                                      // academicYear:
-                                      //     AppConfig.academicYear, // ✅ global use
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: DashboardTile(
-                              title: 'Message',
-                              iconPath: 'assets/icons/message.svg',
-                              color: const Color(0xFFE8B3DE),
-                              // badgeCount: counts?.messages,
-                              centerContent: true,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const TeacherMessagePage(),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-
-                      /// Fifth group: Events & Holidays, PTA, Library, Syllabus, Special Care, Co-Curricular, Quick Notes, Resources
-                      Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: [
-                          DashboardTile(
-                            title: 'Events & Holidays',
-                            subtitle: '16 Jan 2019, Pongal',
-                            iconPath: 'assets/icons/events.svg',
-                            color: const Color(0xFFF9AFD2),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      const TeacherEventsHolidaysPage(
-                                        startInMonthView: true,
-                                      ),
-                                ),
-                              );
-                            },
-                          ),
-                          if (settings.isVisible('pta'))
-                            DashboardTile(
-                              title: 'PTA',
-                              subtitle: 'Next meeting: 22 Sep. 2019',
-                              iconPath: 'assets/icons/pta.svg',
-                              color: const Color(0xFFDBC0B6),
-                              onClose: () =>
-                                  settings.updateVisibility('pta', false),
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const TeacherPTAPage(),
-                                  ),
-                                );
-                              },
-                            ),
-                          if (settings.isVisible('library'))
-                            _buildBadgeTile(
-                              selector: (provider) => provider.counts?.library,
-                              builder: (badgeCount) => DashboardTile(
-                                title: 'Library',
-                                subtitle: 'Manage books and records',
-                                iconPath: 'assets/icons/library.svg',
-                                color: const Color(0xFFACCFE2),
-                                badgeCount: badgeCount,
-                                onClose: () =>
-                                    settings.updateVisibility('library', false),
-                                onTap: () async {
-                                  await _pushAndClearCount(
-                                    itemType: 'library',
-                                    route: MaterialPageRoute(
-                                      builder: (_) =>
-                                          const AddLibraryBookPage(),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          if (settings.isVisible('subjects'))
-                            DashboardTile(
-                              title: 'Syllabus',
-                              subtitle: 'Lessons to be completed',
-                              iconPath: 'assets/icons/syllabus.svg',
-                              color: const Color(0xFFA3D3A7),
-                              onClose: () =>
-                                  settings.updateVisibility('subjects', false),
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const TeacherSyllabusPage(),
-                                  ),
-                                );
-                              },
-                            ),
-                          if (settings.isVisible('special_care'))
-                            DashboardTile(
-                              title: 'Special care',
-                              subtitle: 'Students need your support',
-                              iconPath: 'assets/icons/special_care.svg',
-                              color: const Color(0xFFFFD399),
-                              onClose: () => settings.updateVisibility(
-                                'special_care',
-                                false,
-                              ),
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const SpecialCarePage(),
-                                  ),
-                                );
-                              },
-                            ),
-                          if (settings.isVisible('cocurricular'))
-                            DashboardTile(
-                              title: 'Co curricular activities',
-                              subtitle: 'NCC Camp on 23, Jan.2019',
-                              iconPath: 'assets/icons/co_curricular.svg',
-                              color: const Color(0xFFDBD88A),
-                              onClose: () => settings.updateVisibility(
-                                'cocurricular',
-                                false,
-                              ),
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        const CoCurricularActivitiesPage(),
-                                  ),
-                                );
-                              },
-                            ),
-                          if (settings.isVisible('quick_notes'))
-                            DashboardTile(
-                              title: 'Sticky notes',
-                              subtitle: 'Note anything worth noting',
-                              iconPath: 'assets/icons/quick_notes.svg',
-                              color: const Color(0xFFE6E6E6),
-                              onClose: () => settings.updateVisibility(
-                                'quick_notes',
-                                false,
-                              ),
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        const TeacherQuickNotesPage(),
-                                  ),
-                                );
-                              },
-                            ),
-                          if (settings.isVisible('resources'))
-                            DashboardTile(
-                              title: 'Resources',
-                              subtitle: 'Useful links and study materials',
-                              iconPath: 'assets/icons/resources.svg',
-                              color: const Color(0xFFD8CAD8),
-                              onClose: () =>
-                                  settings.updateVisibility('resources', false),
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const TeacherResourcePage(),
-                                  ),
-                                );
-                              },
-                            ),
-                        ],
-                      ),
-                    ],
-                  );
-                },
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 12, top: 4),
+              child: TextButton.icon(
+                onPressed: _handleBack,
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
+                label: const Text('Back'),
+                style: TextButton.styleFrom(foregroundColor: Colors.black87),
               ),
+            ),
+            Expanded(
+              child: _isInitialLoadPending
+                  ? const Center(child: CircularProgressIndicator())
+                  : Consumer<SettingsProvider>(
+                      builder: (context, settings, _) {
+                        return ListView(
+                          padding: const EdgeInsets.all(12),
+                          children: [
+                            /// First group: Notifications, Achievements, To-do, Reports
+                            Wrap(
+                              spacing: 12,
+                              runSpacing: 12,
+                              children: [
+                                _buildBadgeTile(
+                                  selector: (provider) =>
+                                      provider.counts?.notifications,
+                                  builder: (badgeCount) => DashboardTile(
+                                    title: 'Notifications',
+                                    subtitle: 'PTA meeting on 12, Feb. 2019',
+                                    iconPath: 'assets/icons/notification.svg',
+                                    color: const Color(0xFFF9F7A5),
+                                    badgeCount: badgeCount,
+                                    onTap: () async {
+                                      await _pushAndClearCount(
+                                        itemType: 'notifications',
+                                        route: MaterialPageRoute(
+                                          builder: (_) =>
+                                              const TeacherNotificationPage(),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+
+                                if (settings.isVisible('achievements'))
+                                  _buildBadgeTile(
+                                    selector: (provider) =>
+                                        provider.counts?.achievements,
+                                    builder: (badgeCount) => DashboardTile(
+                                      title: 'Achievements',
+                                      subtitle: 'Congratulate your teacher',
+                                      iconPath: 'assets/icons/achievements.svg',
+                                      color: const Color(0xFFFCEE21),
+                                      badgeCount: badgeCount,
+                                      onClose: () => settings.updateVisibility(
+                                        'achievements',
+                                        false,
+                                      ),
+                                      onTap: () async {
+                                        await _pushAndClearCount(
+                                          itemType: 'achievements',
+                                          route: MaterialPageRoute(
+                                            builder: (_) =>
+                                                const TeacherAchievementPage(),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                if (settings.isVisible('todo'))
+                                  _buildBadgeTile(
+                                    selector: (provider) =>
+                                        provider.counts?.todo,
+                                    builder: (badgeCount) => DashboardTile(
+                                      title: 'Home Work',
+                                      subtitle:
+                                          'Make your own list, set reminder.',
+                                      iconPath: 'assets/icons/todo.svg',
+                                      color: const Color(0xFF8FD8E5),
+                                      badgeCount: badgeCount,
+                                      onClose: () => settings.updateVisibility(
+                                        'todo',
+                                        false,
+                                      ),
+                                      onTap: () async {
+                                        await _pushAndClearCount(
+                                          itemType: 'todo',
+                                          route: MaterialPageRoute(
+                                            builder: (_) =>
+                                                const ToDoListPage(),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                DashboardTile(
+                                  title: 'Reports',
+                                  subtitle: 'Progress report updated',
+                                  iconPath: 'assets/icons/reports.svg',
+                                  color: const Color(0xFFFFCCCC),
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const TeacherReportPage(),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+
+                            /// Second group: Attendance, Class & Time
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: DashboardTile(
+                                    title: 'Attendance',
+                                    iconPath: 'assets/icons/attendance.svg',
+                                    color: const Color(0xFFFFCCCC),
+                                    centerContent: true,
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              const TeacherAttendancePage(),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: DashboardTile(
+                                    title: 'Class & Time',
+                                    iconPath: 'assets/icons/class_time.svg',
+                                    color: const Color(0xFFFCDBB1),
+                                    centerContent: true,
+                                    onTap: () => Navigator.pushNamed(
+                                      context,
+                                      '/classtime',
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+
+                            /// Third group: Payments, Exams
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildBadgeTile(
+                                    selector: (provider) =>
+                                        provider.counts?.payments,
+                                    builder: (badgeCount) => DashboardTile(
+                                      title: 'Payments',
+                                      iconPath: 'assets/icons/payments.svg',
+                                      color: const Color(0xFFC0DD94),
+                                      badgeCount: badgeCount,
+                                      centerContent: true,
+                                      onTap: () async {
+                                        await _pushAndClearCount(
+                                          itemType: 'payments',
+                                          route: MaterialPageRoute(
+                                            builder: (_) =>
+                                                const TeacherPaymentsPage(),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: DashboardTile(
+                                    title: 'Exams',
+                                    iconPath: 'assets/icons/exams.svg',
+                                    color: const Color(0xFFAAE5C8),
+                                    // badgeCount: 2, // placeholder
+                                    centerContent: true,
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              const TeacherExamPage(),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+
+                            /// Fourth group: Transport, Message
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: DashboardTile(
+                                    title: 'Transport',
+                                    iconPath: 'assets/icons/transport.svg',
+                                    color: const Color(0xFFCCCCFF),
+                                    centerContent: true,
+                                    onTap: () async {
+                                      final prefs =
+                                          await SharedPreferences.getInstance();
+                                      final staffId =
+                                          TeacherIdResolver.resolveFromPrefs(
+                                            prefs,
+                                          );
+
+                                      if (!context.mounted) return;
+
+                                      if (staffId == null) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Teacher ID not found. Please login again.',
+                                            ),
+                                          ),
+                                        );
+                                        return;
+                                      }
+
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => TransportPage(
+                                            staffId: staffId,
+                                            // academicYear:
+                                            //     AppConfig.academicYear, // ✅ global use
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: DashboardTile(
+                                    title: 'Message',
+                                    iconPath: 'assets/icons/message.svg',
+                                    color: const Color(0xFFE8B3DE),
+                                    // badgeCount: counts?.messages,
+                                    centerContent: true,
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              const TeacherMessagePage(),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+
+                            /// Fifth group: Events & Holidays, PTA, Library, Syllabus, Special Care, Co-Curricular, Quick Notes, Resources
+                            Wrap(
+                              spacing: 12,
+                              runSpacing: 12,
+                              children: [
+                                DashboardTile(
+                                  title: 'Events & Holidays',
+                                  subtitle: '16 Jan 2019, Pongal',
+                                  iconPath: 'assets/icons/events.svg',
+                                  color: const Color(0xFFF9AFD2),
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const TeacherEventsHolidaysPage(
+                                              startInMonthView: true,
+                                            ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                                if (settings.isVisible('pta'))
+                                  DashboardTile(
+                                    title: 'PTA',
+                                    subtitle: 'Next meeting: 22 Sep. 2019',
+                                    iconPath: 'assets/icons/pta.svg',
+                                    color: const Color(0xFFDBC0B6),
+                                    onClose: () =>
+                                        settings.updateVisibility('pta', false),
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              const TeacherPTAPage(),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                if (settings.isVisible('library'))
+                                  _buildBadgeTile(
+                                    selector: (provider) =>
+                                        provider.counts?.library,
+                                    builder: (badgeCount) => DashboardTile(
+                                      title: 'Library',
+                                      subtitle: 'Manage books and records',
+                                      iconPath: 'assets/icons/library.svg',
+                                      color: const Color(0xFFACCFE2),
+                                      badgeCount: badgeCount,
+                                      onClose: () => settings.updateVisibility(
+                                        'library',
+                                        false,
+                                      ),
+                                      onTap: () async {
+                                        await _pushAndClearCount(
+                                          itemType: 'library',
+                                          route: MaterialPageRoute(
+                                            builder: (_) =>
+                                                const AddLibraryBookPage(),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                if (settings.isVisible('subjects'))
+                                  DashboardTile(
+                                    title: 'Syllabus',
+                                    subtitle: 'Lessons to be completed',
+                                    iconPath: 'assets/icons/syllabus.svg',
+                                    color: const Color(0xFFA3D3A7),
+                                    onClose: () => settings.updateVisibility(
+                                      'subjects',
+                                      false,
+                                    ),
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              const TeacherSyllabusPage(),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                if (settings.isVisible('special_care'))
+                                  DashboardTile(
+                                    title: 'Special care',
+                                    subtitle: 'Students need your support',
+                                    iconPath: 'assets/icons/special_care.svg',
+                                    color: const Color(0xFFFFD399),
+                                    onClose: () => settings.updateVisibility(
+                                      'special_care',
+                                      false,
+                                    ),
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              const SpecialCarePage(),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                if (settings.isVisible('cocurricular'))
+                                  DashboardTile(
+                                    title: 'Co curricular activities',
+                                    subtitle: 'NCC Camp on 23, Jan.2019',
+                                    iconPath: 'assets/icons/co_curricular.svg',
+                                    color: const Color(0xFFDBD88A),
+                                    onClose: () => settings.updateVisibility(
+                                      'cocurricular',
+                                      false,
+                                    ),
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              const CoCurricularActivitiesPage(),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                if (settings.isVisible('quick_notes'))
+                                  DashboardTile(
+                                    title: 'Sticky notes',
+                                    subtitle: 'Note anything worth noting',
+                                    iconPath: 'assets/icons/quick_notes.svg',
+                                    color: const Color(0xFFE6E6E6),
+                                    onClose: () => settings.updateVisibility(
+                                      'quick_notes',
+                                      false,
+                                    ),
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              const TeacherQuickNotesPage(),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                if (settings.isVisible('resources'))
+                                  DashboardTile(
+                                    title: 'Resources',
+                                    subtitle:
+                                        'Useful links and study materials',
+                                    iconPath: 'assets/icons/resources.svg',
+                                    color: const Color(0xFFD8CAD8),
+                                    onClose: () => settings.updateVisibility(
+                                      'resources',
+                                      false,
+                                    ),
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              const TeacherResourcePage(),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                              ],
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
